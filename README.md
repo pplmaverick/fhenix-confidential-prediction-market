@@ -19,14 +19,14 @@ FHE-encrypted prediction market — bet amounts and choices are sealed on-chain 
 
 ## Why Fhenix CoFHE-Native
 
-這個專案不是從其他鏈 port 過來的。每個設計決策都對應到 Fhenix CoFHE 的原生加密能力。
+This project is not a port from another chain. Every design decision maps directly to a native capability of Fhenix CoFHE.
 
 | Problem | Generic EVM approach | Fhenix CoFHE-native approach |
 |---|---|---|
-| 下注金額可見 | 明文 `uint256` 儲存在 storage | `euint64` 加密，鏈上無法讀取 |
-| 選擇可見 | 明文 `bool`，任何人可查 | `ebool` 加密，無法推斷用戶立場 |
-| 即時解密 | 直接讀 storage 即可 | async `ctHash`，僅閾值網路持有解密金鑰 |
-| 無存取控制 | 任何人可讀所有狀態 | ACL `FHE.allowThis()` / `FHE.allowSender()` 明確授權 |
+| Bet amount is public | Plaintext `uint256` visible in storage | `euint64` encrypted — unreadable on-chain |
+| Bet choice is public | Plaintext `bool` — anyone can see your position | `ebool` encrypted — impossible to infer stance |
+| Instant decryption | Read storage directly | Async `ctHash` — only the threshold network holds the decryption key |
+| No access control | Anyone can read all state | ACL via `FHE.allowThis()` / `FHE.allowSender()` — explicit permission required |
 
 ---
 
@@ -68,19 +68,19 @@ User (Browser / Script)
 ## Core Features
 
 ### Encrypted Bet Placement
-用戶透過 `@cofhe/sdk` 在本地加密下注金額與選擇，產生 `InEuint64` / `InEbool` 結構傳入合約。合約呼叫 `FHE.asEuint64()` / `FHE.asEbool()` 轉換後，以 `FHE.allowThis()` 授權合約本身、`FHE.allowSender()` 授權用戶，確保只有合法方可存取密文。
+Users encrypt their bet amount and choice locally via `@cofhe/sdk`, producing `InEuint64` / `InEbool` structs that are passed to the contract. The contract calls `FHE.asEuint64()` / `FHE.asEbool()` to convert them into on-chain ciphertexts, then grants access via `FHE.allowThis()` (for the contract itself) and `FHE.allowSender()` (for the bettor), ensuring only authorized parties can operate on the ciphertext.
 
 ### FHE-Based Winner Verification
-`claimWinnings()` 不依賴明文比對。流程：
-1. `FHE.asEbool(market.outcome)` 將公開結果加密
-2. `FHE.eq(encChoice, outcomeEnc)` 私密比對用戶選擇與結果
-3. `FHE.select(isWinner, encAmount, 0)` 計算加密獎金
-4. `FHE.allowPublic(encPayout)` 允許閾值網路解密
+`claimWinnings()` never relies on plaintext comparison. The flow:
+1. `FHE.asEbool(market.outcome)` encrypts the publicly revealed outcome
+2. `FHE.eq(encChoice, outcomeEnc)` privately compares the user's encrypted choice against the outcome
+3. `FHE.select(isWinner, encAmount, 0)` computes the encrypted payout
+4. `FHE.allowPublic(encPayout)` enables threshold network decryption
 
-整個驗證過程中，合約本身無法知道用戶是否獲勝。
+The contract itself never learns whether any individual bettor won.
 
 ### Threshold Network Settlement
-解密由 Fhenix 閾值網路執行於鏈下，回傳 `(plainPayout, signature)`。用戶呼叫 `withdraw()` 提交 `FHE.publishDecryptResult()` 驗證簽名後，合約才發放獎金。
+Decryption is performed off-chain by the Fhenix threshold network, returning `(plainPayout, signature)`. The user calls `withdraw()` and submits `FHE.publishDecryptResult()` to verify the signature on-chain before funds are released.
 
 ---
 
@@ -139,16 +139,16 @@ placeBet(
     InEbool   calldata encChoice    // encrypted choice: true = Yes, false = No
 ) external payable returns (uint256 betId)
 
-// Lock betting period
+// Lock the betting period
 lockMarket(uint256 marketId) external
 
-// Reveal outcome (market owner only)
+// Reveal the outcome (market owner only)
 submitResult(uint256 marketId, bool outcome) external
 
-// FHE winner computation → stores encrypted payout ctHash
+// FHE winner computation — stores encrypted payout ctHash
 claimWinnings(uint256 betId, uint256 marketId) external
 
-// Finalize after off-chain decryption
+// Finalize withdrawal after off-chain decryption
 withdraw(
     uint256 betId,
     uint256 plainPayout,
@@ -170,17 +170,17 @@ Frontend (SDK)
         ▼
 Contract: FHE.asEuint64(encAmount) → euint64
           FHE.asEbool(encChoice)   → ebool
-          FHE.allowThis(amount)    ← 授權合約未來可使用
-          FHE.allowSender(amount)  ← 授權用戶查看自己的密文
+          FHE.allowThis(amount)    ← grants the contract future access
+          FHE.allowSender(amount)  ← grants the bettor access to their own ciphertext
 ```
 
 ### claimWinnings — FHE winner verification
 ```
-ebool outcomeEnc  = FHE.asEbool(market.outcome)         // 公開結果加密
-ebool isWinner    = FHE.eq(bet.encChoice, outcomeEnc)   // 私密比對
+ebool outcomeEnc  = FHE.asEbool(market.outcome)          // encrypt the public outcome
+ebool isWinner    = FHE.eq(bet.encChoice, outcomeEnc)    // private comparison
 euint64 encPayout = FHE.select(isWinner, bet.encAmount, FHE.asEuint64(0))
-                                                         // 加密獎金
-FHE.allowPublic(encPayout)  // 允許閾值網路解密
+                                                          // encrypted payout
+FHE.allowPublic(encPayout)   // enable threshold network decryption
 emit WinningsClaimed(betId, msg.sender, encPayoutCtHash)
 ```
 
@@ -190,7 +190,7 @@ Off-chain: client.decryptForTx(encPayoutCtHash).withoutPermit().execute()
         → { plainPayout, ctHash, signature }
 
 On-chain:  FHE.publishDecryptResult(ctHash, plainPayout, signature)
-        → 驗證閾值網路簽名
+        → verifies threshold network signature
         → transfer(msg.sender, plainPayout)
 ```
 
@@ -199,38 +199,37 @@ On-chain:  FHE.publishDecryptResult(ctHash, plainPayout, signature)
 ## Fees & Security
 
 **Fees**
-- 本合約無平台抽成，所有 ETH 留在合約池中
-- 未獲勝者的 ETH 留在池中，由獲勝者按比例提取（M3 升級）
+- No platform fee — all ETH remains in the contract pool
+- Losing stakes stay in the pool for winners to claim proportionally (M3 upgrade)
 
 **Security**
-- ACL 強制存取控制：每個加密值需明確 `allow*()` 才可操作
-- 閾值網路簽名驗證：`publishDecryptResult()` 防止偽造解密結果
-- Owner-only 操作：`lockMarket` / `submitResult` 僅限市場創建者
+- ACL enforcement: every ciphertext requires an explicit `allow*()` call before it can be used
+- Threshold network signature verification: `publishDecryptResult()` prevents forged decryption results
+- Owner-only operations: `lockMarket` / `submitResult` restricted to the market creator
 
 ---
 
 ## Implementation Notes
 
-**`evmVersion: "cancun"` 為強制必要**
-FHE 合約使用 transient storage opcodes（`TSTORE` / `TLOAD`），若 evmVersion 低於 cancun 則編譯失敗。
+**`evmVersion: "cancun"` is mandatory**
+The FHE contracts use transient storage opcodes (`TSTORE` / `TLOAD`). Compilation fails on any `evmVersion` below `cancun`.
 
-**`InEuint64` / `InEbool` struct 結構**
-加密輸入不是單純的 `bytes32`，而是包含四個欄位的 struct：
+**`InEuint64` / `InEbool` are structs, not raw `bytes32`**
+Encrypted inputs carry four fields that must be mapped explicitly from SDK output to the Solidity struct:
 ```solidity
 struct InEuint64 {
-    uint256 ctHash;       // 密文 hash
-    uint8   securityZone; // 安全區域
-    uint8   utype;        // FHE 類型 enum
-    bytes   signature;    // ZK proof 簽名
+    uint256 ctHash;       // ciphertext hash
+    uint8   securityZone; // security zone
+    uint8   utype;        // FHE type enum value
+    bytes   signature;    // ZK proof signature
 }
 ```
-SDK 輸出需手動對應到此 struct 才能傳入合約。
 
-**FHE 操作為非同步**
-`FHE.eq()` / `FHE.select()` 等操作在 tx 中只是提交 task 給 CoFHE Task Manager，實際計算由 Fhenix 閾值網路離鏈完成。`claimWinnings()` tx 成功後，需等待 coprocessor 處理完畢才能拿到解密結果。
+**FHE operations are asynchronous**
+`FHE.eq()` / `FHE.select()` submit tasks to the CoFHE Task Manager within the transaction. The actual computation is performed off-chain by the Fhenix threshold network. After `claimWinnings()` succeeds, the caller must wait for the coprocessor to process the tasks before requesting decryption.
 
-**`publishDecryptResult` 接受 `uint256 ctHash`**
-FHE library 的 `publishDecryptResult()` 第一個參數為 `uint256`，非 `bytes32`。`euint64.unwrap()` 回傳 `bytes32`，事件 emit 時需注意型別，呼叫 `withdraw()` 時須轉型。
+**`publishDecryptResult` takes `uint256 ctHash`, not `bytes32`**
+The FHE library's `publishDecryptResult()` expects `uint256` as its first argument. `euint64.unwrap()` returns `bytes32`, so callers must cast when invoking `withdraw()`.
 
 ---
 
@@ -249,29 +248,29 @@ FHE library 的 `publishDecryptResult()` 第一個參數為 `uint256`，非 `byt
 ## Roadmap
 
 **✅ M1 — Core FHE Contract (completed)**
-- `ConfidentialPredictionMarket` 合約部署於 Arbitrum Sepolia
-- e2e 完整流程 7 筆 tx（deploy → createMarket → placeBet×2 → lockMarket → submitResult → claimWinnings）
-- FHE payout ctHash 正確輸出，CoFHE 解密任務驗證通過
+- `ConfidentialPredictionMarket` deployed on Arbitrum Sepolia
+- Full e2e flow across 7 transactions: deploy → createMarket → placeBet×2 → lockMarket → submitResult → claimWinnings
+- FHE payout `ctHash` correctly emitted; CoFHE decryption task verified
 
 **⬜ M2 — Frontend**
-- React + wagmi 前端
-- 瀏覽器端 CoFHE SDK 加密下注
-- Vercel 部署
+- React + wagmi frontend
+- Browser-side CoFHE SDK encryption for bet placement
+- Vercel deployment
 
 **⬜ M3 — MarketFactory**
-- 支援同時多個預測市場
-- MarketFactory 合約 + 市場列表前端
+- Support for multiple concurrent prediction markets
+- `MarketFactory` contract + market listing frontend
 
 **⬜ M4 — Oracle Integration**
-- Chainlink price feed 取代手動 submitResult
-- 自動化結算流程
+- Chainlink price feed replaces manual `submitResult`
+- Automated settlement flow
 
 **⬜ M5 — Advanced FHE**
-- Private leaderboard（用戶只能看自己的歷史）
-- 多選加密投票（`ebool` array）
+- Private leaderboard (users can only view their own history)
+- Multi-option encrypted voting (`ebool` array)
 
 **⬜ M6 — Mainnet**
-- Fhenix 主網上線後遷移部署
+- Migration to Fhenix mainnet upon launch
 
 ---
 
