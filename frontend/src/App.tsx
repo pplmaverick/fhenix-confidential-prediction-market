@@ -6,7 +6,7 @@ import {
   useReadContract,
   useChainId,
 } from 'wagmi'
-import { parseEther } from 'viem'
+import { parseEther, parseGwei } from 'viem'
 import { arbitrumSepolia } from 'wagmi/chains'
 import { Encryptable } from '@cofhe/sdk'
 import { cofheClient } from './cofheClient'
@@ -152,6 +152,7 @@ export default function App() {
       addLog(`enc ctHash: ${encAmountStruct.ctHash.toString().slice(0, 16)}… sig: ${encAmountStruct.signature.slice(0, 10)}…`)
       addLog('Sending placeBet tx...')
 
+      const feeData = await publicClient!.estimateFeesPerGas()
       const hash = await walletClient.writeContract({
         address: CONTRACT_ADDRESS,
         abi: ABI,
@@ -160,7 +161,9 @@ export default function App() {
         value: amountWei,
         chain: arbitrumSepolia,
         account: walletClient.account!,
-        gas: 5_000_000n, // FHE precompile 需要大量 gas，estimateGas 會嚴重低估
+        gas: 5_000_000n,
+        maxFeePerGas: feeData.maxFeePerGas ? feeData.maxFeePerGas * 2n : parseGwei('0.1'),
+        maxPriorityFeePerGas: feeData.maxPriorityFeePerGas ?? parseGwei('0.001'),
       })
 
       addLog(`placeBet tx sent: ${hash}`)
@@ -182,6 +185,7 @@ export default function App() {
       addLog(
         `Sending claimWinnings(betId=${claimBetId}, marketId=${claimMarketId})...`,
       )
+      const claimFee = await publicClient!.estimateFeesPerGas()
       const hash = await walletClient.writeContract({
         address: CONTRACT_ADDRESS,
         abi: ABI,
@@ -189,7 +193,9 @@ export default function App() {
         args: [BigInt(claimBetId), BigInt(claimMarketId)],
         chain: arbitrumSepolia,
         account: walletClient.account!,
-        gas: 5_000_000n, // FHE precompile 需要大量 gas
+        gas: 5_000_000n,
+        maxFeePerGas: claimFee.maxFeePerGas ? claimFee.maxFeePerGas * 2n : parseGwei('0.1'),
+        maxPriorityFeePerGas: claimFee.maxPriorityFeePerGas ?? parseGwei('0.001'),
       })
       addLog(`claimWinnings tx sent: ${hash}`)
     } catch (e: any) {
