@@ -29,6 +29,7 @@ export default function App() {
   const { data: walletClient } = useWalletClient()
 
   const [cofheReady, setCofheReady] = useState(false)
+  const [cofheStatus, setCofheStatus] = useState('')
   const [marketId, setMarketId] = useState('0')
   const [logs, setLogs] = useState<LogEntry[]>([])
   const [busy, setBusy] = useState(false)
@@ -41,20 +42,30 @@ export default function App() {
   useEffect(() => {
     if (!isConnected || !publicClient || !walletClient) {
       setCofheReady(false)
+      setCofheStatus('')
       return
     }
     let cancelled = false
     ;(async () => {
       try {
+        setCofheStatus('connecting')
         addLog('Initialising CoFHE client...')
         await cofheClient.connect(publicClient as any, walletClient as any)
+
+        setCofheStatus('signing')
+        addLog('Requesting FHE permit signature (請在 MetaMask 簽署訊息)...')
         await cofheClient.permits.getOrCreateSelfPermit()
+
         if (!cancelled) {
           setCofheReady(true)
-          addLog('CoFHE client ready')
+          setCofheStatus('ready')
+          addLog('CoFHE client ready ✓')
         }
       } catch (e: any) {
-        if (!cancelled) addLog(`CoFHE init error: ${e.message}`)
+        if (!cancelled) {
+          setCofheStatus('error')
+          addLog(`CoFHE init error: ${e.message}`)
+        }
       }
     })()
     return () => {
@@ -189,6 +200,7 @@ export default function App() {
               handlePlaceBet={handlePlaceBet}
               handleClaimWinnings={handleClaimWinnings}
               cofheReady={cofheReady}
+              cofheStatus={cofheStatus}
               busy={busy}
               isConnected={isConnected}
               wrongChain={wrongChain}

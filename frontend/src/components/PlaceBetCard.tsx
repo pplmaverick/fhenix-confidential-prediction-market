@@ -12,6 +12,7 @@ interface PlaceBetCardProps {
     claimMarketId: string,
   ) => Promise<void>
   cofheReady: boolean
+  cofheStatus: string
   busy: boolean
   isConnected: boolean
   wrongChain: boolean
@@ -22,6 +23,7 @@ export function PlaceBetCard({
   handlePlaceBet,
   handleClaimWinnings,
   cofheReady,
+  cofheStatus,
   busy,
   isConnected,
   wrongChain,
@@ -191,18 +193,38 @@ export function PlaceBetCard({
           {/* FHE status indicator */}
           {isConnected && (
             <div
-              className={`flex items-center gap-sm px-md py-sm rounded-xl border text-xs font-label-caps ${
-                cofheReady
-                  ? 'bg-tertiary-container/10 border-tertiary/30 text-on-tertiary-container'
-                  : 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+              className={`flex items-start gap-sm px-md py-sm rounded-xl border text-xs font-label-caps ${
+                cofheStatus === 'error'
+                  ? 'bg-error-container/20 border-error/30 text-error'
+                  : cofheReady
+                    ? 'bg-tertiary-container/10 border-tertiary/30 text-on-tertiary-container'
+                    : 'bg-amber-500/10 border-amber-500/30 text-amber-400'
               }`}
             >
               <span
-                className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                  cofheReady ? 'bg-tertiary' : 'bg-amber-400'
-                } animate-pulse`}
+                className={`w-2 h-2 rounded-full flex-shrink-0 mt-[2px] ${
+                  cofheStatus === 'error'
+                    ? 'bg-error'
+                    : cofheReady
+                      ? 'bg-tertiary'
+                      : 'bg-amber-400 animate-pulse'
+                }`}
               />
-              {cofheReady ? 'CoFHE Ready — bets are encrypted' : 'Initialising CoFHE client...'}
+              <span>
+                {cofheReady && 'CoFHE Ready — bets are encrypted'}
+                {cofheStatus === 'connecting' && 'Connecting to CoFHE network...'}
+                {cofheStatus === 'signing' && (
+                  <>
+                    Waiting for FHE permit signature...
+                    <br />
+                    <span className="text-white/70 normal-case">
+                      請點擊 MetaMask 圖示，確認「Sign」簽名請求
+                    </span>
+                  </>
+                )}
+                {cofheStatus === 'error' && 'CoFHE 初始化失敗，請重新整理頁面'}
+                {!cofheStatus && 'Initialising CoFHE client...'}
+              </span>
             </div>
           )}
 
