@@ -260,7 +260,6 @@ export default function App() {
           <div className="lg:col-span-5">
             <PlaceBetCard
               marketId={marketId}
-              nextBetId={nextBetId as bigint | undefined}
               handlePlaceBet={handlePlaceBet}
               handleClaimWinnings={handleClaimWinnings}
               cofheReady={cofheReady}

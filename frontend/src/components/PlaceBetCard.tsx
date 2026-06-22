@@ -5,7 +5,6 @@ import { CONTRACT_ADDRESS, ABI } from '../contract'
 
 interface PlaceBetCardProps {
   marketId: string
-  nextBetId: bigint | undefined
   handlePlaceBet: (
     marketId: string,
     betAmount: string,
@@ -24,7 +23,6 @@ interface PlaceBetCardProps {
 
 export function PlaceBetCard({
   marketId,
-  nextBetId,
   handlePlaceBet,
   handleClaimWinnings,
   cofheReady,
@@ -40,27 +38,24 @@ export function PlaceBetCard({
   const { address } = useAccount()
   const { data: balance } = useBalance({ address })
 
-  // 抓所有 bet，過濾出屬於當前用戶 + 當前市場的未 claim 投注
-  const betCount = Number(nextBetId ?? 0n)
-  const betContracts = Array.from({ length: betCount }, (_, i) => ({
+  // 用 marketBets(marketId, index) 抓當前市場的 betId 列表（試 50 個 slot）
+  const MARKET_BET_SLOTS = 50
+  const marketBetContracts = Array.from({ length: MARKET_BET_SLOTS }, (_, i) => ({
     address: CONTRACT_ADDRESS as `0x${string}`,
     abi: ABI,
-    functionName: 'bets' as const,
-    args: [BigInt(i)] as const,
+    functionName: 'marketBets' as const,
+    args: [BigInt(marketId || '0'), BigInt(i)] as const,
   }))
-  const { data: allBets } = useReadContracts({
-    contracts: betContracts,
-    query: { enabled: isConnected && betCount > 0 && tab === 'claim' },
+  const { data: marketBetResults, isLoading: betsLoading } = useReadContracts({
+    contracts: marketBetContracts,
+    query: { enabled: isConnected && tab === 'claim' },
   })
 
-  const myBets = allBets
-    ? allBets
-        .map((r, i) => ({ i, data: r.status === 'success' ? (r.result as any) : null }))
-        .filter(({ data }) =>
-          data &&
-          data.bettor?.toLowerCase() === address?.toLowerCase() &&
-          !data.claimed
-        )
+  // 成功的就是有效 betId，失敗的是 out-of-bounds（此市場沒那麼多 bet）
+  const marketBetIds: bigint[] = marketBetResults
+    ? marketBetResults
+        .filter(r => r.status === 'success')
+        .map(r => r.result as bigint)
     : []
 
   const balanceEth = balance ? parseFloat(formatEther(balance.value)) : null
@@ -305,28 +300,27 @@ export function PlaceBetCard({
 
           {!isConnected ? (
             <p className="text-on-surface-variant text-sm text-center py-lg">請先連接錢包</p>
-          ) : myBets.length === 0 ? (
+          ) : betsLoading ? (
+            <div className="text-center py-lg">
+              <span className="material-symbols-outlined text-on-surface-variant/50 animate-spin block mb-sm" style={{ fontSize: 32 }}>progress_activity</span>
+              <p className="text-on-surface-variant font-body-sm text-body-sm">載入投注中...</p>
+            </div>
+          ) : marketBetIds.length === 0 ? (
             <div className="text-center py-lg border border-outline-variant/30 rounded-xl">
-              <span className="material-symbols-outlined text-on-surface-variant/30 block mb-sm" style={{ fontSize: 40 }}>
-                redeem
-              </span>
-              <p className="text-on-surface-variant font-body-sm text-body-sm">
-                {betCount === 0 ? '尚無任何投注' : '此市場沒有可領取的投注'}
-              </p>
+              <span className="material-symbols-outlined text-on-surface-variant/30 block mb-sm" style={{ fontSize: 40 }}>redeem</span>
+              <p className="text-on-surface-variant font-body-sm text-body-sm">此市場尚無投注</p>
             </div>
           ) : (
             <div className="space-y-sm">
-              {myBets.map(({ i, data }) => (
-                <div key={i} className="flex items-center justify-between px-md py-sm rounded-xl border border-outline-variant bg-surface-container/30">
+              {marketBetIds.map((betId) => (
+                <div key={betId.toString()} className="flex items-center justify-between px-md py-sm rounded-xl border border-outline-variant bg-surface-container/30">
                   <div className="space-y-[2px]">
-                    <p className="font-code-md text-code-md text-on-surface">Bet #{i}</p>
-                    <p className="font-code-md text-[11px] text-on-surface-variant">
-                      {formatEther(BigInt(data.plainAmount))} ETH
-                    </p>
+                    <p className="font-code-md text-code-md text-on-surface">Bet #{betId.toString()}</p>
+                    <p className="font-code-md text-[11px] text-on-surface-variant">Market #{marketId}</p>
                   </div>
                   <button
                     className="bg-tertiary-container text-on-tertiary-container px-md py-xs rounded-xl font-bold text-xs flex items-center gap-xs transition-all active:scale-95 hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
-                    onClick={() => handleClaimWinnings(String(i), marketId)}
+                    onClick={() => handleClaimWinnings(betId.toString(), marketId)}
                     disabled={!canClaim}
                   >
                     <span className="material-symbols-outlined" style={{ fontSize: 16 }}>redeem</span>

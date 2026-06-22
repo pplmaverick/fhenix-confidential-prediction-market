@@ -73,15 +73,12 @@ export const ABI = [
     type: 'function',
   },
   {
-    inputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
-    name: 'bets',
-    outputs: [
-      { internalType: 'uint256', name: 'encAmount', type: 'uint256' },
-      { internalType: 'uint256', name: 'encChoice', type: 'uint256' },
-      { internalType: 'uint256', name: 'plainAmount', type: 'uint256' },
-      { internalType: 'address', name: 'bettor', type: 'address' },
-      { internalType: 'bool', name: 'claimed', type: 'bool' },
+    inputs: [
+      { internalType: 'uint256', name: '', type: 'uint256' },
+      { internalType: 'uint256', name: '', type: 'uint256' },
     ],
+    name: 'marketBets',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
     stateMutability: 'view',
     type: 'function',
   },
