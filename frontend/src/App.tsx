@@ -136,13 +136,26 @@ export default function App() {
         ])
         .execute()
 
-      addLog('Encryption done. Estimating gas...')
+      // 明確轉換為 viem tuple 格式，確保 signature 有 0x 前綴
+      const toStruct = (enc: any) => ({
+        ctHash: BigInt(enc.ctHash),
+        securityZone: Number(enc.securityZone),
+        utype: Number(enc.utype),
+        signature: (typeof enc.signature === 'string' && !enc.signature.startsWith('0x')
+          ? `0x${enc.signature}`
+          : enc.signature) as `0x${string}`,
+      })
+      const encAmountStruct = toStruct(encAmount)
+      const encChoiceStruct = toStruct(encChoice)
+
+      addLog(`enc ctHash: ${encAmountStruct.ctHash.toString().slice(0, 16)}… sig: ${encAmountStruct.signature.slice(0, 10)}…`)
+      addLog('Estimating gas...')
 
       const txParams = {
         address: CONTRACT_ADDRESS,
         abi: ABI,
         functionName: 'placeBet',
-        args: [BigInt(marketIdParam), encAmount as any, encChoice as any],
+        args: [BigInt(marketIdParam), encAmountStruct, encChoiceStruct],
         value: amountWei,
         account: walletClient.account!,
       } as const
