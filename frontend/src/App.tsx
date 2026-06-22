@@ -212,7 +212,9 @@ export default function App() {
         </div>
 
         {/* Activity Log */}
-        <ActivityLog logs={logs} onClear={() => setLogs([])} />
+        <div id="activity-log">
+          <ActivityLog logs={logs} onClear={() => setLogs([])} />
+        </div>
       </main>
 
       {/* Footer */}

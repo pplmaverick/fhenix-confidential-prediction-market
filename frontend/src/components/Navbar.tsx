@@ -53,16 +53,15 @@ export function Navbar({
               Markets
             </a>
             <a
-              className="font-label-caps text-label-caps text-on-surface-variant hover:text-primary transition-colors"
-              href="#"
+              className="font-label-caps text-label-caps text-on-surface-variant hover:text-primary transition-colors cursor-pointer"
+              onClick={(e) => {
+                e.preventDefault()
+                document
+                  .getElementById('activity-log')
+                  ?.scrollIntoView({ behavior: 'smooth' })
+              }}
             >
               Activity
-            </a>
-            <a
-              className="font-label-caps text-label-caps text-on-surface-variant hover:text-primary transition-colors"
-              href="#"
-            >
-              Portfolio
             </a>
           </nav>
 
