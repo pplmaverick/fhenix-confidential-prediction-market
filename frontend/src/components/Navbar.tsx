@@ -105,21 +105,27 @@ export function Navbar({
 
                 {showWallets && (
                   <div className="absolute right-0 top-full mt-sm w-56 confidential-card rounded-xl py-xs shadow-xl z-50">
-                    {connectors.map((c) => (
-                      <button
-                        key={c.uid}
-                        className="w-full text-left px-md py-sm hover:bg-surface-container-high transition-colors font-label-caps text-sm text-on-surface flex items-center gap-sm"
-                        onClick={() => handleConnect(c)}
-                      >
-                        <span
-                          className="material-symbols-outlined text-primary"
-                          style={{ fontSize: 18 }}
+                    {connectors.length === 0 ? (
+                      <p className="px-md py-sm text-on-surface-variant font-label-caps text-xs">
+                        未偵測到錢包，請安裝 MetaMask 或 OKX Wallet
+                      </p>
+                    ) : (
+                      connectors.map((c) => (
+                        <button
+                          key={c.uid}
+                          className="w-full text-left px-md py-sm hover:bg-surface-container-high transition-colors font-label-caps text-sm text-on-surface flex items-center gap-sm"
+                          onClick={() => handleConnect(c)}
                         >
-                          account_balance_wallet
-                        </span>
-                        {c.name}
-                      </button>
-                    ))}
+                          <span
+                            className="material-symbols-outlined text-primary"
+                            style={{ fontSize: 18 }}
+                          >
+                            account_balance_wallet
+                          </span>
+                          {c.name}
+                        </button>
+                      ))
+                    )}
                   </div>
                 )}
               </div>
@@ -163,15 +169,21 @@ export function Navbar({
                 </button>
                 {showWallets && (
                   <div className="absolute right-0 top-full mt-sm w-44 confidential-card rounded-xl py-xs shadow-xl z-50">
-                    {connectors.map((c) => (
-                      <button
-                        key={c.uid}
-                        className="w-full text-left px-md py-sm hover:bg-surface-container-high transition-colors font-label-caps text-xs text-on-surface"
-                        onClick={() => handleConnect(c)}
-                      >
-                        {c.name}
-                      </button>
-                    ))}
+                    {connectors.length === 0 ? (
+                      <p className="px-md py-sm text-on-surface-variant font-label-caps text-[10px]">
+                        未偵測到錢包
+                      </p>
+                    ) : (
+                      connectors.map((c) => (
+                        <button
+                          key={c.uid}
+                          className="w-full text-left px-md py-sm hover:bg-surface-container-high transition-colors font-label-caps text-xs text-on-surface"
+                          onClick={() => handleConnect(c)}
+                        >
+                          {c.name}
+                        </button>
+                      ))
+                    )}
                   </div>
                 )}
               </div>

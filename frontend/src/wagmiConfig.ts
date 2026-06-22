@@ -1,22 +1,11 @@
 import { createConfig, http } from 'wagmi'
 import { arbitrumSepolia } from 'wagmi/chains'
-import { injected, metaMask } from 'wagmi/connectors'
 
+// 不手動加 connectors，讓 wagmi v2 的 EIP-6963 自動偵測所有已安裝錢包
+// （MetaMask、OKX Wallet 等都支援 EIP-6963，會自動出現在列表中）
 export const wagmiConfig = createConfig({
   chains: [arbitrumSepolia],
-  connectors: [
-    metaMask(),
-    injected({
-      target: {
-        id: 'okxwallet',
-        name: 'OKX Wallet',
-        // provider 為函數，connect 時才讀取 window.okxwallet
-        provider(window) {
-          return (window as any)?.okxwallet
-        },
-      },
-    }),
-  ],
+  connectors: [],
   transports: {
     [arbitrumSepolia.id]: http(),
   },
