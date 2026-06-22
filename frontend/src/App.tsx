@@ -1,12 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   useAccount,
-  useConnect,
-  useDisconnect,
   usePublicClient,
   useWalletClient,
   useReadContract,
-  useSwitchChain,
   useChainId,
 } from 'wagmi'
 import { parseEther } from 'viem'
@@ -26,10 +23,7 @@ function timestamp() {
 }
 
 export default function App() {
-  const { address, isConnected } = useAccount()
-  const { connect, connectors, error: connectError } = useConnect()
-  const { disconnect } = useDisconnect()
-  const { switchChain } = useSwitchChain()
+  const { isConnected } = useAccount()
   const chainId = useChainId()
   const publicClient = usePublicClient()
   const { data: walletClient } = useWalletClient()
@@ -161,17 +155,7 @@ export default function App() {
 
   return (
     <div className="dark min-h-screen flex flex-col bg-background text-on-surface">
-      <Navbar
-        isConnected={isConnected}
-        address={address}
-        connectors={connectors}
-        connect={connect}
-        connectError={connectError}
-        disconnect={disconnect}
-        switchChain={switchChain}
-        wrongChain={wrongChain}
-        cofheReady={cofheReady}
-      />
+      <Navbar cofheReady={cofheReady} />
 
       <main className="flex-grow w-full max-w-container-max mx-auto px-gutter py-xl">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-lg items-start">
