@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { useAccount, useBalance } from 'wagmi'
+import { formatEther } from 'viem'
 
 interface PlaceBetCardProps {
   marketId: string
@@ -33,6 +35,13 @@ export function PlaceBetCard({
   const [claimBetId, setClaimBetId] = useState('0')
   const [claimMarketId, setClaimMarketId] = useState('0')
   const [tab, setTab] = useState<'bet' | 'claim'>('bet')
+
+  const { address } = useAccount()
+  const { data: balance } = useBalance({ address })
+
+  const balanceEth = balance ? parseFloat(formatEther(balance.value)) : null
+  const GAS_RESERVE = 0.001 // 預留 gas
+  const maxBet = balanceEth !== null ? Math.max(0, balanceEth - GAS_RESERVE) : null
 
   const canBet = isConnected && cofheReady && !wrongChain && !busy
   const canClaim = isConnected && !wrongChain && !busy
@@ -123,9 +132,16 @@ export function PlaceBetCard({
 
           {/* Amount Input */}
           <div>
-            <label className="font-label-caps text-[11px] text-on-surface-variant block mb-sm uppercase tracking-widest">
-              Bet Amount
-            </label>
+            <div className="flex justify-between items-center mb-sm">
+              <label className="font-label-caps text-[11px] text-on-surface-variant uppercase tracking-widest">
+                Bet Amount
+              </label>
+              {balanceEth !== null && (
+                <span className="font-code-md text-[11px] text-on-surface-variant">
+                  餘額：<span className="text-on-surface">{balanceEth.toFixed(4)}</span> ETH
+                </span>
+              )}
+            </div>
             <div className="relative">
               <input
                 className="w-full bg-surface-container-lowest border border-outline-variant rounded-xl py-md pl-md pr-16 text-on-surface font-code-md text-code-md focus:ring-1 focus:ring-primary focus:border-primary focus:outline-none transition-all"
@@ -142,13 +158,21 @@ export function PlaceBetCard({
                 </span>
               </div>
             </div>
-            <div className="flex justify-end mt-xs px-1">
+            <div className="flex justify-between mt-xs px-1">
               <button
                 className="text-[10px] font-label-caps text-primary hover:underline"
                 onClick={() => setBetAmount('0.001')}
               >
                 MIN (0.001)
               </button>
+              {maxBet !== null && maxBet > 0.001 && (
+                <button
+                  className="text-[10px] font-label-caps text-secondary hover:underline"
+                  onClick={() => setBetAmount(maxBet.toFixed(4))}
+                >
+                  MAX ({maxBet.toFixed(4)})
+                </button>
+              )}
             </div>
           </div>
 
