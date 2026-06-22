@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAccount, useBalance, useReadContracts } from 'wagmi'
 import { formatEther } from 'viem'
 import { CONTRACT_ADDRESS, ABI } from '../contract'
@@ -34,6 +34,11 @@ export function PlaceBetCard({
   const [betAmount, setBetAmount] = useState('0.001')
   const [choice, setChoice] = useState<'yes' | 'no'>('yes')
   const [tab, setTab] = useState<'bet' | 'claim'>('bet')
+
+  // 切換市場時重置輸入金額，避免舊數值殘留
+  useEffect(() => {
+    setBetAmount('0.001')
+  }, [marketId])
 
   const { address } = useAccount()
   const { data: balance } = useBalance({ address })
@@ -203,6 +208,14 @@ export function PlaceBetCard({
               </span>
               <span className="font-code-md text-code-md text-on-surface">
                 #{marketId}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="font-label-caps text-[11px] text-on-surface-variant">
+                Amount
+              </span>
+              <span className="font-code-md text-code-md font-bold text-on-surface">
+                {betAmount || '—'} ETH
               </span>
             </div>
             <div className="flex justify-between items-center">
