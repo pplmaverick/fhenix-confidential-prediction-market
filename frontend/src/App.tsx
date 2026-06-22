@@ -13,6 +13,7 @@ import { cofheClient } from './cofheClient'
 import { CONTRACT_ADDRESS, ABI, CHAIN_ID } from './contract'
 import { Navbar } from './components/Navbar'
 import { MarketCard } from './components/MarketCard'
+import { MarketSelector } from './components/MarketSelector'
 import { PlaceBetCard } from './components/PlaceBetCard'
 import { ActivityLog } from './components/ActivityLog'
 
@@ -227,6 +228,28 @@ export default function App() {
       <Navbar cofheReady={cofheReady} />
 
       <main className="flex-grow w-full max-w-container-max mx-auto px-gutter py-xl">
+
+        {/* Market Selector */}
+        {isConnected && (
+          <div className="mb-xl">
+            <div className="flex items-center justify-between mb-md">
+              <h3 className="font-headline-lg-mobile text-headline-lg-mobile font-bold text-on-surface">
+                All Markets
+              </h3>
+              <span className="font-code-md text-[11px] text-on-surface-variant">
+                {nextMarketId?.toString() ?? '0'} markets
+              </span>
+            </div>
+            <div className="confidential-card rounded-xl p-md">
+              <MarketSelector
+                marketCount={Number(nextMarketId ?? 0n)}
+                selectedId={marketId}
+                onSelect={(id) => { setMarketId(id); refetchMarket() }}
+              />
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-lg items-start">
           {/* Left: Market Info */}
           <div className="lg:col-span-7">
@@ -255,6 +278,7 @@ export default function App() {
           <div className="lg:col-span-5">
             <PlaceBetCard
               marketId={marketId}
+              nextBetId={nextBetId as bigint | undefined}
               handlePlaceBet={handlePlaceBet}
               handleClaimWinnings={handleClaimWinnings}
               cofheReady={cofheReady}

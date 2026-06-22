@@ -1,9 +1,11 @@
 import { useState } from 'react'
-import { useAccount, useBalance } from 'wagmi'
+import { useAccount, useBalance, useReadContracts } from 'wagmi'
 import { formatEther } from 'viem'
+import { CONTRACT_ADDRESS, ABI } from '../contract'
 
 interface PlaceBetCardProps {
   marketId: string
+  nextBetId: bigint | undefined
   handlePlaceBet: (
     marketId: string,
     betAmount: string,
@@ -22,6 +24,7 @@ interface PlaceBetCardProps {
 
 export function PlaceBetCard({
   marketId,
+  nextBetId,
   handlePlaceBet,
   handleClaimWinnings,
   cofheReady,
@@ -32,12 +35,33 @@ export function PlaceBetCard({
 }: PlaceBetCardProps) {
   const [betAmount, setBetAmount] = useState('0.001')
   const [choice, setChoice] = useState<'yes' | 'no'>('yes')
-  const [claimBetId, setClaimBetId] = useState('0')
-  const [claimMarketId, setClaimMarketId] = useState('0')
   const [tab, setTab] = useState<'bet' | 'claim'>('bet')
 
   const { address } = useAccount()
   const { data: balance } = useBalance({ address })
+
+  // 抓所有 bet，過濾出屬於當前用戶 + 當前市場的未 claim 投注
+  const betCount = Number(nextBetId ?? 0n)
+  const betContracts = Array.from({ length: betCount }, (_, i) => ({
+    address: CONTRACT_ADDRESS as `0x${string}`,
+    abi: ABI,
+    functionName: 'bets' as const,
+    args: [BigInt(i)] as const,
+  }))
+  const { data: allBets } = useReadContracts({
+    contracts: betContracts,
+    query: { enabled: isConnected && betCount > 0 && tab === 'claim' },
+  })
+
+  const myBets = allBets
+    ? allBets
+        .map((r, i) => ({ i, data: r.status === 'success' ? (r.result as any) : null }))
+        .filter(({ data }) =>
+          data &&
+          data.bettor?.toLowerCase() === address?.toLowerCase() &&
+          !data.claimed
+        )
+    : []
 
   const balanceEth = balance ? parseFloat(formatEther(balance.value)) : null
   const GAS_RESERVE = 0.001 // 預留 gas
@@ -274,47 +298,44 @@ export function PlaceBetCard({
         </div>
       ) : (
         /* Claim Winnings Tab */
-        <div className="space-y-lg">
+        <div className="space-y-md">
           <p className="font-body-sm text-body-sm text-on-surface-variant">
-            After the market resolves, enter your Bet ID to claim winnings.
+            市場結算後，你在 <span className="text-primary font-bold">Market #{marketId}</span> 的未領取投注會自動列出。
           </p>
 
-          <div>
-            <label className="font-label-caps text-[11px] text-on-surface-variant block mb-sm uppercase tracking-widest">
-              Bet ID
-            </label>
-            <input
-              className="w-full bg-surface-container-lowest border border-outline-variant rounded-xl py-md px-md text-on-surface font-code-md text-code-md focus:ring-1 focus:ring-primary focus:border-primary focus:outline-none transition-all"
-              placeholder="0"
-              type="number"
-              value={claimBetId}
-              onChange={(e) => setClaimBetId(e.target.value)}
-            />
-          </div>
-
-          <div>
-            <label className="font-label-caps text-[11px] text-on-surface-variant block mb-sm uppercase tracking-widest">
-              Market ID
-            </label>
-            <input
-              className="w-full bg-surface-container-lowest border border-outline-variant rounded-xl py-md px-md text-on-surface font-code-md text-code-md focus:ring-1 focus:ring-primary focus:border-primary focus:outline-none transition-all"
-              placeholder="0"
-              type="number"
-              value={claimMarketId}
-              onChange={(e) => setClaimMarketId(e.target.value)}
-            />
-          </div>
-
-          <button
-            className="w-full bg-tertiary-container text-on-tertiary-container py-md rounded-xl font-bold text-sm flex items-center justify-center gap-sm transition-all active:scale-95 hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
-            onClick={() => handleClaimWinnings(claimBetId, claimMarketId)}
-            disabled={!canClaim}
-          >
-            <span className="material-symbols-outlined" style={{ fontSize: 20 }}>
-              redeem
-            </span>
-            {busy ? 'Processing...' : 'Claim Winnings'}
-          </button>
+          {!isConnected ? (
+            <p className="text-on-surface-variant text-sm text-center py-lg">請先連接錢包</p>
+          ) : myBets.length === 0 ? (
+            <div className="text-center py-lg border border-outline-variant/30 rounded-xl">
+              <span className="material-symbols-outlined text-on-surface-variant/30 block mb-sm" style={{ fontSize: 40 }}>
+                redeem
+              </span>
+              <p className="text-on-surface-variant font-body-sm text-body-sm">
+                {betCount === 0 ? '尚無任何投注' : '此市場沒有可領取的投注'}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-sm">
+              {myBets.map(({ i, data }) => (
+                <div key={i} className="flex items-center justify-between px-md py-sm rounded-xl border border-outline-variant bg-surface-container/30">
+                  <div className="space-y-[2px]">
+                    <p className="font-code-md text-code-md text-on-surface">Bet #{i}</p>
+                    <p className="font-code-md text-[11px] text-on-surface-variant">
+                      {formatEther(BigInt(data.plainAmount))} ETH
+                    </p>
+                  </div>
+                  <button
+                    className="bg-tertiary-container text-on-tertiary-container px-md py-xs rounded-xl font-bold text-xs flex items-center gap-xs transition-all active:scale-95 hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+                    onClick={() => handleClaimWinnings(String(i), marketId)}
+                    disabled={!canClaim}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: 16 }}>redeem</span>
+                    {busy ? '...' : 'Claim'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
