@@ -40,6 +40,9 @@ export default function App() {
 
   // Connect CoFHE client when wallet is ready
   useEffect(() => {
+    // 診斷：guard 前先 log，確認各值狀態
+    addLog(`wagmi: connected=${isConnected} pc=${!!publicClient} wc=${!!walletClient}`)
+
     if (!isConnected || !publicClient || !walletClient) {
       setCofheReady(false)
       setCofheStatus('')
@@ -49,31 +52,55 @@ export default function App() {
     ;(async () => {
       try {
         setCofheStatus('connecting')
-        addLog('Initialising CoFHE client...')
-        await cofheClient.connect(publicClient as any, walletClient as any)
 
-        // connect() 成功後就可以加密下注，先設為 Ready
+        // 診斷資訊：確認 walletClient 狀態
+        const addr = walletClient.account?.address
+        const chainId = publicClient.chain?.id
+        addLog(`CoFHE init: chain=${chainId ?? '?'} addr=${addr ? addr.slice(0, 8) + '…' : 'pending'}`)
+
+        if (!addr) {
+          addLog('CoFHE: walletClient.account 尚未就緒，等待...')
+          return
+        }
+
+        addLog('CoFHE: 呼叫 cofheClient.connect()...')
+
+        // 10 秒 timeout 防止 hang
+        await Promise.race([
+          cofheClient.connect(publicClient as any, walletClient as any),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('cofheClient.connect() timeout (10s)')), 10000)
+          ),
+        ])
+
+        addLog('CoFHE: connect() 完成')
+
         if (!cancelled) {
           setCofheReady(true)
           setCofheStatus('ready')
           addLog('CoFHE client ready ✓')
         }
 
-        // getOrCreateSelfPermit() 只用於解密讀取，非必要，背景執行不阻塞
-        setCofheStatus('signing')
-        addLog('Requesting FHE permit (非必要，可略過)...')
-        await cofheClient.permits.getOrCreateSelfPermit()
-        if (!cancelled) addLog('FHE permit ready ✓')
+        // permit 背景執行，失敗不影響下注
+        if (!cancelled) {
+          try {
+            setCofheStatus('signing')
+            await cofheClient.permits.getOrCreateSelfPermit()
+            if (!cancelled) {
+              setCofheStatus('ready')
+              addLog('FHE permit ready ✓')
+            }
+          } catch (permitErr: any) {
+            if (!cancelled) {
+              setCofheStatus('ready')
+              addLog(`FHE permit (非必要，略過): ${permitErr.message}`)
+            }
+          }
+        }
       } catch (e: any) {
         if (!cancelled) {
-          // permit 失敗不影響下注，只記 log
-          addLog(`CoFHE permit (非必要): ${e.message}`)
-          if (!cofheReady) {
-            setCofheStatus('error')
-            addLog('CoFHE connect 失敗，請重新整理')
-          } else {
-            setCofheStatus('ready')
-          }
+          setCofheStatus('error')
+          addLog(`CoFHE 錯誤: ${e.message}`)
         }
       }
     })()
