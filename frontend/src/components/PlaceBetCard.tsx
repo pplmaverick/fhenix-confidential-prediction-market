@@ -211,19 +211,19 @@ export function PlaceBetCard({
                 }`}
               />
               <span>
-                {cofheReady && 'CoFHE Ready — bets are encrypted'}
-                {cofheStatus === 'connecting' && 'Connecting to CoFHE network...'}
-                {cofheStatus === 'signing' && (
+                {cofheReady && cofheStatus !== 'signing' && 'CoFHE Ready — bets are encrypted'}
+                {cofheReady && cofheStatus === 'signing' && (
                   <>
-                    Waiting for FHE permit signature...
+                    CoFHE Ready — bets are encrypted
                     <br />
-                    <span className="text-white/70 normal-case">
-                      請點擊 MetaMask 圖示，確認「Sign」簽名請求
+                    <span className="opacity-70 normal-case font-normal">
+                      Background: requesting FHE permit (optional)
                     </span>
                   </>
                 )}
-                {cofheStatus === 'error' && 'CoFHE 初始化失敗，請重新整理頁面'}
-                {!cofheStatus && 'Initialising CoFHE client...'}
+                {!cofheReady && cofheStatus === 'connecting' && 'Connecting to CoFHE network...'}
+                {!cofheReady && cofheStatus === 'error' && 'CoFHE 初始化失敗，請重新整理頁面'}
+                {!cofheReady && !cofheStatus && 'Initialising CoFHE client...'}
               </span>
             </div>
           )}

@@ -52,19 +52,28 @@ export default function App() {
         addLog('Initialising CoFHE client...')
         await cofheClient.connect(publicClient as any, walletClient as any)
 
-        setCofheStatus('signing')
-        addLog('Requesting FHE permit signature (請在 MetaMask 簽署訊息)...')
-        await cofheClient.permits.getOrCreateSelfPermit()
-
+        // connect() 成功後就可以加密下注，先設為 Ready
         if (!cancelled) {
           setCofheReady(true)
           setCofheStatus('ready')
           addLog('CoFHE client ready ✓')
         }
+
+        // getOrCreateSelfPermit() 只用於解密讀取，非必要，背景執行不阻塞
+        setCofheStatus('signing')
+        addLog('Requesting FHE permit (非必要，可略過)...')
+        await cofheClient.permits.getOrCreateSelfPermit()
+        if (!cancelled) addLog('FHE permit ready ✓')
       } catch (e: any) {
         if (!cancelled) {
-          setCofheStatus('error')
-          addLog(`CoFHE init error: ${e.message}`)
+          // permit 失敗不影響下注，只記 log
+          addLog(`CoFHE permit (非必要): ${e.message}`)
+          if (!cofheReady) {
+            setCofheStatus('error')
+            addLog('CoFHE connect 失敗，請重新整理')
+          } else {
+            setCofheStatus('ready')
+          }
         }
       }
     })()
