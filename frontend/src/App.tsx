@@ -40,43 +40,23 @@ export default function App() {
 
   // Connect CoFHE client when wallet is ready
   useEffect(() => {
-    // 診斷：guard 前先 log，確認各值狀態
-    addLog(`wagmi: connected=${isConnected} pc=${!!publicClient} wc=${!!walletClient} chain=${chainId}`)
-
     if (!isConnected || !publicClient || !walletClient) {
       setCofheReady(false)
       setCofheStatus('')
-      if (isConnected && !walletClient) {
-        addLog(`wc=undefined → 請切換 MetaMask 到 Arbitrum Sepolia (chainId ${CHAIN_ID})`)
-      }
       return
     }
     let cancelled = false
     ;(async () => {
       try {
         setCofheStatus('connecting')
+        addLog('CoFHE: 初始化中...')
 
-        // 診斷資訊：確認 walletClient 狀態
-        const addr = walletClient.account?.address
-        const chainId = publicClient.chain?.id
-        addLog(`CoFHE init: chain=${chainId ?? '?'} addr=${addr ? addr.slice(0, 8) + '…' : 'pending'}`)
-
-        if (!addr) {
-          addLog('CoFHE: walletClient.account 尚未就緒，等待...')
-          return
-        }
-
-        addLog('CoFHE: 呼叫 cofheClient.connect()...')
-
-        // 10 秒 timeout 防止 hang
         await Promise.race([
           cofheClient.connect(publicClient as any, walletClient as any),
           new Promise<never>((_, reject) =>
             setTimeout(() => reject(new Error('cofheClient.connect() timeout (10s)')), 10000)
           ),
         ])
-
-        addLog('CoFHE: connect() 完成')
 
         if (!cancelled) {
           setCofheReady(true)
@@ -96,7 +76,7 @@ export default function App() {
           } catch (permitErr: any) {
             if (!cancelled) {
               setCofheStatus('ready')
-              addLog(`FHE permit (非必要，略過): ${permitErr.message}`)
+              addLog(`FHE permit (略過): ${permitErr.message}`)
             }
           }
         }

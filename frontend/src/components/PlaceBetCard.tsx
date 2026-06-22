@@ -194,25 +194,30 @@ export function PlaceBetCard({
           {isConnected && (
             <div
               className={`flex items-start gap-sm px-md py-sm rounded-xl border text-xs font-label-caps ${
-                cofheStatus === 'error'
+                wrongChain
                   ? 'bg-error-container/20 border-error/30 text-error'
-                  : cofheReady
-                    ? 'bg-tertiary-container/10 border-tertiary/30 text-on-tertiary-container'
-                    : 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+                  : cofheStatus === 'error'
+                    ? 'bg-error-container/20 border-error/30 text-error'
+                    : cofheReady
+                      ? 'bg-tertiary-container/10 border-tertiary/30 text-on-tertiary-container'
+                      : 'bg-amber-500/10 border-amber-500/30 text-amber-400'
               }`}
             >
               <span
                 className={`w-2 h-2 rounded-full flex-shrink-0 mt-[2px] ${
-                  cofheStatus === 'error'
+                  wrongChain
                     ? 'bg-error'
-                    : cofheReady
-                      ? 'bg-tertiary'
-                      : 'bg-amber-400 animate-pulse'
+                    : cofheStatus === 'error'
+                      ? 'bg-error'
+                      : cofheReady
+                        ? 'bg-tertiary'
+                        : 'bg-amber-400 animate-pulse'
                 }`}
               />
               <span>
-                {cofheReady && cofheStatus !== 'signing' && 'CoFHE Ready — bets are encrypted'}
-                {cofheReady && cofheStatus === 'signing' && (
+                {wrongChain && '請在 MetaMask 切換到 Arbitrum Sepolia，CoFHE 才能初始化'}
+                {!wrongChain && cofheReady && cofheStatus !== 'signing' && 'CoFHE Ready — bets are encrypted'}
+                {!wrongChain && cofheReady && cofheStatus === 'signing' && (
                   <>
                     CoFHE Ready — bets are encrypted
                     <br />
@@ -221,9 +226,9 @@ export function PlaceBetCard({
                     </span>
                   </>
                 )}
-                {!cofheReady && cofheStatus === 'connecting' && 'Connecting to CoFHE network...'}
-                {!cofheReady && cofheStatus === 'error' && 'CoFHE 初始化失敗，請重新整理頁面'}
-                {!cofheReady && !cofheStatus && 'Initialising CoFHE client...'}
+                {!wrongChain && !cofheReady && cofheStatus === 'connecting' && 'Connecting to CoFHE network...'}
+                {!wrongChain && !cofheReady && cofheStatus === 'error' && 'CoFHE 初始化失敗，請重新整理頁面'}
+                {!wrongChain && !cofheReady && !cofheStatus && 'Initialising CoFHE client...'}
               </span>
             </div>
           )}
