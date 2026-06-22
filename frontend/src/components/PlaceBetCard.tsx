@@ -1,0 +1,271 @@
+import { useState } from 'react'
+
+interface PlaceBetCardProps {
+  marketId: string
+  handlePlaceBet: (
+    marketId: string,
+    betAmount: string,
+    choice: 'yes' | 'no',
+  ) => Promise<void>
+  handleClaimWinnings: (
+    claimBetId: string,
+    claimMarketId: string,
+  ) => Promise<void>
+  cofheReady: boolean
+  busy: boolean
+  isConnected: boolean
+  wrongChain: boolean
+}
+
+export function PlaceBetCard({
+  marketId,
+  handlePlaceBet,
+  handleClaimWinnings,
+  cofheReady,
+  busy,
+  isConnected,
+  wrongChain,
+}: PlaceBetCardProps) {
+  const [betAmount, setBetAmount] = useState('0.001')
+  const [choice, setChoice] = useState<'yes' | 'no'>('yes')
+  const [claimBetId, setClaimBetId] = useState('0')
+  const [claimMarketId, setClaimMarketId] = useState('0')
+  const [tab, setTab] = useState<'bet' | 'claim'>('bet')
+
+  const canBet = isConnected && cofheReady && !wrongChain && !busy
+  const canClaim = isConnected && !wrongChain && !busy
+
+  const betBtnLabel = busy
+    ? 'Processing...'
+    : !isConnected
+      ? 'Connect Wallet First'
+      : wrongChain
+        ? 'Switch to Arbitrum Sepolia'
+        : !cofheReady
+          ? 'Initialising FHE...'
+          : 'Encrypt & Place Bet'
+
+  return (
+    <div className="confidential-card rounded-xl p-lg glow-accent">
+      {/* Tab header */}
+      <div className="flex items-center gap-md mb-lg border-b border-outline-variant pb-md">
+        <button
+          className={`font-label-caps text-xs pb-1 border-b-2 transition-colors ${
+            tab === 'bet'
+              ? 'text-on-surface border-primary'
+              : 'text-on-surface-variant border-transparent hover:text-primary'
+          }`}
+          onClick={() => setTab('bet')}
+        >
+          Place Bet
+        </button>
+        <button
+          className={`font-label-caps text-xs pb-1 border-b-2 transition-colors ${
+            tab === 'claim'
+              ? 'text-on-surface border-primary'
+              : 'text-on-surface-variant border-transparent hover:text-primary'
+          }`}
+          onClick={() => setTab('claim')}
+        >
+          Claim Winnings
+        </button>
+        <div className="ml-auto flex items-center gap-xs bg-primary-container/10 border border-primary/20 px-sm py-[2px] rounded">
+          <span
+            className="material-symbols-outlined text-primary"
+            style={{ fontSize: 14, fontVariationSettings: "'FILL' 1" }}
+          >
+            enhanced_encryption
+          </span>
+          <span className="font-label-caps text-[10px] text-primary uppercase">
+            Encrypted
+          </span>
+        </div>
+      </div>
+
+      {tab === 'bet' ? (
+        <div className="space-y-lg">
+          {/* Outcome Selection */}
+          <div>
+            <label className="font-label-caps text-[11px] text-on-surface-variant block mb-sm uppercase tracking-widest">
+              Select Outcome
+            </label>
+            <div className="grid grid-cols-2 gap-sm">
+              <button
+                className={`py-md border-2 rounded-xl font-bold flex flex-col items-center gap-xs transition-all ${
+                  choice === 'yes'
+                    ? 'border-primary-container bg-primary-container/15 text-primary-fixed-dim'
+                    : 'border-outline-variant text-on-surface-variant hover:border-primary/50 hover:text-primary-fixed-dim'
+                }`}
+                onClick={() => setChoice('yes')}
+              >
+                <span className="text-lg">YES</span>
+                <span className="text-[10px] font-label-caps opacity-70">
+                  Predict True
+                </span>
+              </button>
+              <button
+                className={`py-md border-2 rounded-xl font-bold flex flex-col items-center gap-xs transition-all ${
+                  choice === 'no'
+                    ? 'border-secondary-container bg-secondary-container/10 text-secondary'
+                    : 'border-outline-variant text-on-surface-variant hover:border-secondary/50 hover:text-secondary'
+                }`}
+                onClick={() => setChoice('no')}
+              >
+                <span className="text-lg">NO</span>
+                <span className="text-[10px] font-label-caps opacity-70">
+                  Predict False
+                </span>
+              </button>
+            </div>
+          </div>
+
+          {/* Amount Input */}
+          <div>
+            <label className="font-label-caps text-[11px] text-on-surface-variant block mb-sm uppercase tracking-widest">
+              Bet Amount
+            </label>
+            <div className="relative">
+              <input
+                className="w-full bg-surface-container-lowest border border-outline-variant rounded-xl py-md pl-md pr-16 text-on-surface font-code-md text-code-md focus:ring-1 focus:ring-primary focus:border-primary focus:outline-none transition-all"
+                placeholder="0.001"
+                type="number"
+                value={betAmount}
+                onChange={(e) => setBetAmount(e.target.value)}
+                min="0.001"
+                step="0.001"
+              />
+              <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                <span className="font-label-caps text-sm font-bold text-on-surface-variant">
+                  ETH
+                </span>
+              </div>
+            </div>
+            <div className="flex justify-end mt-xs px-1">
+              <button
+                className="text-[10px] font-label-caps text-primary hover:underline"
+                onClick={() => setBetAmount('0.001')}
+              >
+                MIN (0.001)
+              </button>
+            </div>
+          </div>
+
+          {/* Summary */}
+          <div className="bg-surface-container-low rounded-xl p-md border border-outline-variant/30 space-y-sm">
+            <div className="flex justify-between items-center">
+              <span className="font-label-caps text-[11px] text-on-surface-variant">
+                Market ID
+              </span>
+              <span className="font-code-md text-code-md text-on-surface">
+                #{marketId}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="font-label-caps text-[11px] text-on-surface-variant">
+                Choice
+              </span>
+              <span
+                className={`font-code-md text-code-md font-bold ${
+                  choice === 'yes' ? 'text-tertiary' : 'text-secondary'
+                }`}
+              >
+                {choice.toUpperCase()}
+              </span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="font-label-caps text-[11px] text-on-surface-variant">
+                Privacy
+              </span>
+              <span className="font-code-md text-[11px] text-tertiary flex items-center gap-xs">
+                <span
+                  className="material-symbols-outlined"
+                  style={{ fontSize: 13, fontVariationSettings: "'FILL' 1" }}
+                >
+                  lock
+                </span>
+                FHE Encrypted
+              </span>
+            </div>
+          </div>
+
+          {/* FHE status indicator */}
+          {isConnected && (
+            <div
+              className={`flex items-center gap-sm px-md py-sm rounded-xl border text-xs font-label-caps ${
+                cofheReady
+                  ? 'bg-tertiary-container/10 border-tertiary/30 text-on-tertiary-container'
+                  : 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+              }`}
+            >
+              <span
+                className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                  cofheReady ? 'bg-tertiary' : 'bg-amber-400'
+                } animate-pulse`}
+              />
+              {cofheReady ? 'CoFHE Ready — bets are encrypted' : 'Initialising CoFHE client...'}
+            </div>
+          )}
+
+          {/* Submit Button */}
+          <button
+            className="w-full bg-primary-container text-white py-md rounded-xl font-bold text-sm flex items-center justify-center gap-sm glow-submit transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+            onClick={() => handlePlaceBet(marketId, betAmount, choice)}
+            disabled={!canBet}
+          >
+            <span
+              className="material-symbols-outlined"
+              style={{ fontVariationSettings: "'FILL' 1", fontSize: 20 }}
+            >
+              security
+            </span>
+            {betBtnLabel}
+          </button>
+        </div>
+      ) : (
+        /* Claim Winnings Tab */
+        <div className="space-y-lg">
+          <p className="font-body-sm text-body-sm text-on-surface-variant">
+            After the market resolves, enter your Bet ID to claim winnings.
+          </p>
+
+          <div>
+            <label className="font-label-caps text-[11px] text-on-surface-variant block mb-sm uppercase tracking-widest">
+              Bet ID
+            </label>
+            <input
+              className="w-full bg-surface-container-lowest border border-outline-variant rounded-xl py-md px-md text-on-surface font-code-md text-code-md focus:ring-1 focus:ring-primary focus:border-primary focus:outline-none transition-all"
+              placeholder="0"
+              type="number"
+              value={claimBetId}
+              onChange={(e) => setClaimBetId(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="font-label-caps text-[11px] text-on-surface-variant block mb-sm uppercase tracking-widest">
+              Market ID
+            </label>
+            <input
+              className="w-full bg-surface-container-lowest border border-outline-variant rounded-xl py-md px-md text-on-surface font-code-md text-code-md focus:ring-1 focus:ring-primary focus:border-primary focus:outline-none transition-all"
+              placeholder="0"
+              type="number"
+              value={claimMarketId}
+              onChange={(e) => setClaimMarketId(e.target.value)}
+            />
+          </div>
+
+          <button
+            className="w-full bg-tertiary-container text-on-tertiary-container py-md rounded-xl font-bold text-sm flex items-center justify-center gap-sm transition-all active:scale-95 hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
+            onClick={() => handleClaimWinnings(claimBetId, claimMarketId)}
+            disabled={!canClaim}
+          >
+            <span className="material-symbols-outlined" style={{ fontSize: 20 }}>
+              redeem
+            </span>
+            {busy ? 'Processing...' : 'Claim Winnings'}
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
