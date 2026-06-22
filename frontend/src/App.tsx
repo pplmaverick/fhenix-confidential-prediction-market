@@ -41,11 +41,14 @@ export default function App() {
   // Connect CoFHE client when wallet is ready
   useEffect(() => {
     // 診斷：guard 前先 log，確認各值狀態
-    addLog(`wagmi: connected=${isConnected} pc=${!!publicClient} wc=${!!walletClient}`)
+    addLog(`wagmi: connected=${isConnected} pc=${!!publicClient} wc=${!!walletClient} chain=${chainId}`)
 
     if (!isConnected || !publicClient || !walletClient) {
       setCofheReady(false)
       setCofheStatus('')
+      if (isConnected && !walletClient) {
+        addLog(`wc=undefined → 請切換 MetaMask 到 Arbitrum Sepolia (chainId ${CHAIN_ID})`)
+      }
       return
     }
     let cancelled = false
