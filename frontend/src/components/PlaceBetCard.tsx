@@ -63,7 +63,7 @@ export function PlaceBetCard({
   const maxBet = balanceEth !== null ? Math.max(0, balanceEth - GAS_RESERVE) : null
 
   const canBet = isConnected && cofheReady && !wrongChain && !busy
-  const canClaim = isConnected && !wrongChain && !busy
+  const canClaim = isConnected && cofheReady && !wrongChain && !busy
 
   const betBtnLabel = busy
     ? 'Processing...'
@@ -324,7 +324,7 @@ export function PlaceBetCard({
                     disabled={!canClaim}
                   >
                     <span className="material-symbols-outlined" style={{ fontSize: 16 }}>redeem</span>
-                    {busy ? '...' : 'Claim'}
+                    {busy ? 'Processing...' : !cofheReady ? 'FHE Init...' : 'Claim & Withdraw'}
                   </button>
                 </div>
               ))}

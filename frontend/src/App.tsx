@@ -6,7 +6,7 @@ import {
   useReadContract,
   useChainId,
 } from 'wagmi'
-import { parseEther, parseGwei } from 'viem'
+import { parseEther, parseGwei, parseEventLogs, formatEther } from 'viem'
 import { arbitrumSepolia } from 'wagmi/chains'
 import { Encryptable } from '@cofhe/sdk'
 import { cofheClient } from './cofheClient'
@@ -179,12 +179,11 @@ export default function App() {
     claimBetId: string,
     claimMarketId: string,
   ) {
-    if (!walletClient) return
+    if (!walletClient || !cofheReady) return
     setBusy(true)
     try {
-      addLog(
-        `Sending claimWinnings(betId=${claimBetId}, marketId=${claimMarketId})...`,
-      )
+      // ── Step 1: claimWinnings — FHE on-chain compute ───────────────
+      addLog(`[1/3] claimWinnings(betId=${claimBetId}, marketId=${claimMarketId})...`)
       const claimFee = await publicClient!.estimateFeesPerGas()
       const hash = await walletClient.writeContract({
         address: CONTRACT_ADDRESS,
@@ -197,11 +196,58 @@ export default function App() {
         maxFeePerGas: claimFee.maxFeePerGas ? claimFee.maxFeePerGas * 2n : parseGwei('0.1'),
         maxPriorityFeePerGas: claimFee.maxPriorityFeePerGas ?? parseGwei('0.001'),
       })
-      addLog(`claimWinnings tx sent: ${hash}`)
+      addLog(`claimWinnings tx: ${hash}`)
+      addLog('等待鏈上確認...')
+      const receipt = await publicClient!.waitForTransactionReceipt({ hash })
+
+      // parse WinningsClaimed event from receipt logs
+      const claimLogs = parseEventLogs({ abi: ABI, eventName: 'WinningsClaimed', logs: receipt.logs })
+      if (claimLogs.length === 0) {
+        addLog('⚠️ 找不到 WinningsClaimed event，可能此投注不符合領取條件')
+        return
+      }
+      const encPayoutCtHash = (claimLogs[0].args as { encPayoutCtHash: `0x${string}` }).encPayoutCtHash
+      addLog(`claimWinnings ✓ — ctHash: ${encPayoutCtHash.slice(0, 18)}...`)
+
+      // ── Step 2: Decrypt via CoFHE threshold network ────────────────
+      addLog('[2/3] CoFHE network 解密中（約 20-60 秒）...')
+      const ctHashBigInt = BigInt(encPayoutCtHash)
+      const decryptResult = await cofheClient.decryptForTx(ctHashBigInt).withoutPermit().execute()
+      const payoutWei = decryptResult.decryptedValue
+      const payoutEth = formatEther(payoutWei)
+      if (payoutWei === 0n) {
+        addLog('⚠️ 解密結果為 0 ETH（此投注為虧損投注，無 payout）')
+        return
+      }
+      addLog(`解密完成！Payout = ${payoutEth} ETH`)
+
+      // ── Step 3: withdraw — actual ETH transfer ─────────────────────
+      addLog(`[3/3] withdraw(betId=${claimBetId}, payout=${payoutEth} ETH)...`)
+      const withdrawFee = await publicClient!.estimateFeesPerGas()
+      const withdrawHash = await walletClient.writeContract({
+        address: CONTRACT_ADDRESS,
+        abi: ABI,
+        functionName: 'withdraw',
+        args: [
+          BigInt(claimBetId),
+          payoutWei,
+          BigInt(decryptResult.ctHash.toString()),
+          decryptResult.signature,
+        ],
+        chain: arbitrumSepolia,
+        account: walletClient.account!,
+        gas: 500_000n,
+        maxFeePerGas: withdrawFee.maxFeePerGas ? withdrawFee.maxFeePerGas * 2n : parseGwei('0.1'),
+        maxPriorityFeePerGas: withdrawFee.maxPriorityFeePerGas ?? parseGwei('0.001'),
+      })
+      addLog(`withdraw tx: ${withdrawHash}`)
+      await publicClient!.waitForTransactionReceipt({ hash: withdrawHash })
+      addLog(`✅ 提款成功！收到 ${payoutEth} ETH`)
     } catch (e: any) {
       addLog(`Error: ${e.message ?? String(e)}`)
     } finally {
       setBusy(false)
+      refetchMarket()
     }
   }
 

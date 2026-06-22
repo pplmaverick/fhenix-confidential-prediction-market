@@ -82,4 +82,26 @@ export const ABI = [
     stateMutability: 'view',
     type: 'function',
   },
+  {
+    inputs: [
+      { internalType: 'uint256', name: 'betId', type: 'uint256' },
+      { internalType: 'uint256', name: 'plainPayout', type: 'uint256' },
+      { internalType: 'uint256', name: 'ctHash', type: 'uint256' },
+      { internalType: 'bytes', name: 'signature', type: 'bytes' },
+    ],
+    name: 'withdraw',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: 'uint256', name: 'betId', type: 'uint256' },
+      { indexed: true, internalType: 'address', name: 'bettor', type: 'address' },
+      { indexed: false, internalType: 'bytes32', name: 'encPayoutCtHash', type: 'bytes32' },
+    ],
+    name: 'WinningsClaimed',
+    type: 'event',
+  },
 ] as const
