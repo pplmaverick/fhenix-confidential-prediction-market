@@ -1,3 +1,4 @@
+import { useState, useRef, useEffect } from 'react'
 import type { Connector } from 'wagmi'
 import { CHAIN_ID } from '../contract'
 
@@ -22,16 +23,39 @@ export function Navbar({
   wrongChain,
   cofheReady,
 }: NavbarProps) {
+  const [showWallets, setShowWallets] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
   const shortAddress = address
     ? `${address.slice(0, 6)}...${address.slice(-4)}`
     : ''
+
+  // 點外面關閉下拉選單
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node)
+      ) {
+        setShowWallets(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  // 過濾掉 provider 不存在的 connector（例如沒裝 OKX 就不顯示）
+  const availableConnectors = connectors.filter((c) => {
+    if (c.id === 'okxwallet') {
+      return typeof window !== 'undefined' && !!(window as any).okxwallet
+    }
+    return true
+  })
 
   return (
     <header className="bg-surface/90 backdrop-blur-md border-b border-outline-variant sticky top-0 z-50">
       <div className="flex justify-between items-center px-gutter py-4 max-w-container-max mx-auto">
         {/* Logo + Title */}
         <div className="flex items-center gap-md">
-          {/* Fhenix F icon */}
           <div className="w-8 h-8 rounded-xl bg-primary-container flex items-center justify-center flex-shrink-0">
             <span className="text-white font-bold text-lg leading-none">F</span>
           </div>
@@ -66,12 +90,44 @@ export function Navbar({
           </nav>
 
           {!isConnected ? (
-            <button
-              className="bg-primary-container text-white px-md py-sm rounded-xl font-bold text-sm hover:opacity-80 transition-all active:scale-95"
-              onClick={() => connect({ connector: connectors[0] })}
-            >
-              Connect Wallet
-            </button>
+            /* 錢包選單 */
+            <div className="relative" ref={dropdownRef}>
+              <button
+                className="bg-primary-container text-white px-md py-sm rounded-xl font-bold text-sm hover:opacity-80 transition-all active:scale-95 flex items-center gap-xs"
+                onClick={() => setShowWallets((v) => !v)}
+              >
+                Connect Wallet
+                <span
+                  className="material-symbols-outlined"
+                  style={{ fontSize: 16 }}
+                >
+                  {showWallets ? 'expand_less' : 'expand_more'}
+                </span>
+              </button>
+
+              {showWallets && (
+                <div className="absolute right-0 top-full mt-sm w-52 confidential-card rounded-xl py-xs shadow-xl z-50">
+                  {availableConnectors.map((c) => (
+                    <button
+                      key={c.id}
+                      className="w-full text-left px-md py-sm hover:bg-surface-container-high transition-colors font-label-caps text-sm text-on-surface flex items-center gap-sm"
+                      onClick={() => {
+                        connect({ connector: c })
+                        setShowWallets(false)
+                      }}
+                    >
+                      <span
+                        className="material-symbols-outlined text-primary"
+                        style={{ fontSize: 18 }}
+                      >
+                        account_balance_wallet
+                      </span>
+                      {c.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           ) : (
             <div className="flex items-center gap-sm">
               {wrongChain && (
@@ -100,15 +156,33 @@ export function Navbar({
           )}
         </div>
 
-        {/* Mobile: wallet icon */}
+        {/* Mobile */}
         <div className="md:hidden flex items-center gap-sm">
           {!isConnected ? (
-            <button
-              className="bg-primary-container text-white px-sm py-xs rounded-xl font-bold text-xs"
-              onClick={() => connect({ connector: connectors[0] })}
-            >
-              Connect
-            </button>
+            <div className="relative" ref={dropdownRef}>
+              <button
+                className="bg-primary-container text-white px-sm py-xs rounded-xl font-bold text-xs"
+                onClick={() => setShowWallets((v) => !v)}
+              >
+                Connect
+              </button>
+              {showWallets && (
+                <div className="absolute right-0 top-full mt-sm w-44 confidential-card rounded-xl py-xs shadow-xl z-50">
+                  {availableConnectors.map((c) => (
+                    <button
+                      key={c.id}
+                      className="w-full text-left px-md py-sm hover:bg-surface-container-high transition-colors font-label-caps text-xs text-on-surface"
+                      onClick={() => {
+                        connect({ connector: c })
+                        setShowWallets(false)
+                      }}
+                    >
+                      {c.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           ) : (
             <div className="flex items-center gap-xs">
               <span
