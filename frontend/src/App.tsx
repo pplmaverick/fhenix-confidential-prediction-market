@@ -27,7 +27,7 @@ function timestamp() {
 
 export default function App() {
   const { address, isConnected } = useAccount()
-  const { connect, connectors } = useConnect()
+  const { connect, connectors, error: connectError } = useConnect()
   const { disconnect } = useDisconnect()
   const { switchChain } = useSwitchChain()
   const chainId = useChainId()
@@ -166,6 +166,7 @@ export default function App() {
         address={address}
         connectors={connectors}
         connect={connect}
+        connectError={connectError}
         disconnect={disconnect}
         switchChain={switchChain}
         wrongChain={wrongChain}

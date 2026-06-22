@@ -5,18 +5,15 @@ import { injected, metaMask } from 'wagmi/connectors'
 export const wagmiConfig = createConfig({
   chains: [arbitrumSepolia],
   connectors: [
-    injected(),
     metaMask(),
     injected({
-      target() {
-        return {
-          id: 'okxwallet',
-          name: 'OKX Wallet',
-          provider:
-            typeof window !== 'undefined'
-              ? (window as any).okxwallet
-              : undefined,
-        }
+      target: {
+        id: 'okxwallet',
+        name: 'OKX Wallet',
+        // provider 為函數，connect 時才讀取 window.okxwallet
+        provider(window) {
+          return (window as any)?.okxwallet
+        },
       },
     }),
   ],
