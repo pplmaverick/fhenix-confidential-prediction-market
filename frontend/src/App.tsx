@@ -150,30 +150,17 @@ export default function App() {
       const encChoiceStruct = toStruct(encChoice)
 
       addLog(`enc ctHash: ${encAmountStruct.ctHash.toString().slice(0, 16)}… sig: ${encAmountStruct.signature.slice(0, 10)}…`)
-      addLog('Estimating gas...')
+      addLog('Sending placeBet tx...')
 
-      const txParams = {
+      const hash = await walletClient.writeContract({
         address: CONTRACT_ADDRESS,
         abi: ABI,
         functionName: 'placeBet',
         args: [BigInt(marketIdParam), encAmountStruct, encChoiceStruct],
         value: amountWei,
-        account: walletClient.account!,
-      } as const
-
-      const [gasEstimate, feeData] = await Promise.all([
-        publicClient!.estimateGas(txParams),
-        publicClient!.estimateFeesPerGas(),
-      ])
-
-      addLog('Sending placeBet tx...')
-
-      const hash = await walletClient.writeContract({
-        ...txParams,
         chain: arbitrumSepolia,
-        gas: gasEstimate * 130n / 100n, // +30% buffer
-        maxFeePerGas: feeData.maxFeePerGas ?? undefined,
-        maxPriorityFeePerGas: feeData.maxPriorityFeePerGas ?? undefined,
+        account: walletClient.account!,
+        gas: 5_000_000n, // FHE precompile 需要大量 gas，estimateGas 會嚴重低估
       })
 
       addLog(`placeBet tx sent: ${hash}`)
@@ -195,25 +182,14 @@ export default function App() {
       addLog(
         `Sending claimWinnings(betId=${claimBetId}, marketId=${claimMarketId})...`,
       )
-      const claimParams = {
+      const hash = await walletClient.writeContract({
         address: CONTRACT_ADDRESS,
         abi: ABI,
         functionName: 'claimWinnings',
         args: [BigInt(claimBetId), BigInt(claimMarketId)],
-        account: walletClient.account!,
-      } as const
-
-      const [claimGas, claimFee] = await Promise.all([
-        publicClient!.estimateGas(claimParams),
-        publicClient!.estimateFeesPerGas(),
-      ])
-
-      const hash = await walletClient.writeContract({
-        ...claimParams,
         chain: arbitrumSepolia,
-        gas: claimGas * 130n / 100n,
-        maxFeePerGas: claimFee.maxFeePerGas ?? undefined,
-        maxPriorityFeePerGas: claimFee.maxPriorityFeePerGas ?? undefined,
+        account: walletClient.account!,
+        gas: 5_000_000n, // FHE precompile 需要大量 gas
       })
       addLog(`claimWinnings tx sent: ${hash}`)
     } catch (e: any) {
