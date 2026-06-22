@@ -1,3 +1,4 @@
+import { useState, useRef, useEffect } from 'react'
 import { useAccount, useConnect, useDisconnect, useSwitchChain, useChainId } from 'wagmi'
 import { injected } from 'wagmi/connectors'
 import { CHAIN_ID } from '../contract'
@@ -5,6 +6,20 @@ import { CHAIN_ID } from '../contract'
 interface NavbarProps {
   cofheReady: boolean
 }
+
+// Connectors 直接在 onClick 裡建立（參考 arc/tempo 成功模式）
+const metaMaskConnector = () => injected()
+
+const okxConnector = () =>
+  injected({
+    target: {
+      id: 'okxwallet',
+      name: 'OKX Wallet',
+      provider(window) {
+        return (window as any)?.okxwallet
+      },
+    },
+  })
 
 export function Navbar({ cofheReady }: NavbarProps) {
   const { address, isConnected } = useAccount()
@@ -17,6 +32,36 @@ export function Navbar({ cofheReady }: NavbarProps) {
   const shortAddress = address
     ? `${address.slice(0, 6)}...${address.slice(-4)}`
     : ''
+
+  const [showWallets, setShowWallets] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowWallets(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  useEffect(() => {
+    if (isConnected) setShowWallets(false)
+  }, [isConnected])
+
+  const walletOptions = [
+    {
+      label: 'MetaMask',
+      connector: metaMaskConnector,
+      available: typeof window !== 'undefined' && !!(window as any).ethereum,
+    },
+    {
+      label: 'OKX Wallet',
+      connector: okxConnector,
+      available: typeof window !== 'undefined' && !!(window as any).okxwallet,
+    },
+  ].filter((w) => w.available)
 
   return (
     <header className="bg-surface/90 backdrop-blur-md border-b border-outline-variant sticky top-0 z-50">
@@ -38,19 +83,14 @@ export function Navbar({ cofheReady }: NavbarProps) {
           {/* Desktop right */}
           <div className="hidden md:flex items-center gap-lg">
             <nav className="flex gap-md">
-              <a
-                className="font-label-caps text-label-caps text-primary border-b-2 border-primary pb-1"
-                href="#"
-              >
+              <a className="font-label-caps text-label-caps text-primary border-b-2 border-primary pb-1" href="#">
                 Markets
               </a>
               <a
                 className="font-label-caps text-label-caps text-on-surface-variant hover:text-primary transition-colors cursor-pointer"
                 onClick={(e) => {
                   e.preventDefault()
-                  document
-                    .getElementById('activity-log')
-                    ?.scrollIntoView({ behavior: 'smooth' })
+                  document.getElementById('activity-log')?.scrollIntoView({ behavior: 'smooth' })
                 }}
               >
                 Activity
@@ -58,16 +98,47 @@ export function Navbar({ cofheReady }: NavbarProps) {
             </nav>
 
             {!isConnected ? (
-              <button
-                className="bg-primary-container text-white px-md py-sm rounded-xl font-bold text-sm hover:opacity-80 transition-all active:scale-95 disabled:opacity-60 flex items-center gap-xs"
-                disabled={isPending}
-                onClick={() => connect({ connector: injected() })}
-              >
-                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>
-                  account_balance_wallet
-                </span>
-                {isPending ? 'Connecting...' : 'Connect Wallet'}
-              </button>
+              <div className="relative" ref={dropdownRef}>
+                <button
+                  className="bg-primary-container text-white px-md py-sm rounded-xl font-bold text-sm hover:opacity-80 transition-all active:scale-95 disabled:opacity-60 flex items-center gap-xs"
+                  disabled={isPending}
+                  onClick={() => {
+                    if (walletOptions.length === 1) {
+                      connect({ connector: walletOptions[0].connector() })
+                    } else {
+                      setShowWallets((v) => !v)
+                    }
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 18 }}>
+                    account_balance_wallet
+                  </span>
+                  {isPending ? 'Connecting...' : 'Connect Wallet'}
+                  {walletOptions.length > 1 && (
+                    <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
+                      {showWallets ? 'expand_less' : 'expand_more'}
+                    </span>
+                  )}
+                </button>
+
+                {showWallets && walletOptions.length > 1 && (
+                  <div className="absolute right-0 top-full mt-sm w-48 confidential-card rounded-xl py-xs shadow-xl z-50">
+                    {walletOptions.map((w) => (
+                      <button
+                        key={w.label}
+                        className="w-full text-left px-md py-sm hover:bg-surface-container-high transition-colors font-label-caps text-sm text-on-surface flex items-center gap-sm disabled:opacity-50"
+                        disabled={isPending}
+                        onClick={() => connect({ connector: w.connector() })}
+                      >
+                        <span className="material-symbols-outlined text-primary" style={{ fontSize: 18 }}>
+                          account_balance_wallet
+                        </span>
+                        {w.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             ) : (
               <div className="flex items-center gap-sm">
                 {wrongChain && (
@@ -78,14 +149,8 @@ export function Navbar({ cofheReady }: NavbarProps) {
                     Switch Network
                   </button>
                 )}
-                <span
-                  className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                    cofheReady ? 'bg-tertiary' : 'bg-amber-400'
-                  } animate-pulse`}
-                />
-                <span className="font-code-md text-code-md text-on-surface-variant">
-                  {shortAddress}
-                </span>
+                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${cofheReady ? 'bg-tertiary' : 'bg-amber-400'} animate-pulse`} />
+                <span className="font-code-md text-code-md text-on-surface-variant">{shortAddress}</span>
                 <button
                   className="font-label-caps text-label-caps text-on-surface-variant hover:text-error transition-colors"
                   onClick={() => disconnect()}
@@ -102,18 +167,17 @@ export function Navbar({ cofheReady }: NavbarProps) {
               <button
                 className="bg-primary-container text-white px-sm py-xs rounded-xl font-bold text-xs disabled:opacity-60"
                 disabled={isPending}
-                onClick={() => connect({ connector: injected() })}
+                onClick={() => {
+                  const first = walletOptions[0]
+                  if (first) connect({ connector: first.connector() })
+                }}
               >
                 {isPending ? '...' : 'Connect'}
               </button>
             ) : (
               <div className="flex items-center gap-xs">
-                <span
-                  className={`w-2 h-2 rounded-full ${cofheReady ? 'bg-tertiary' : 'bg-amber-400'} animate-pulse`}
-                />
-                <span className="font-code-md text-xs text-on-surface-variant">
-                  {shortAddress}
-                </span>
+                <span className={`w-2 h-2 rounded-full ${cofheReady ? 'bg-tertiary' : 'bg-amber-400'} animate-pulse`} />
+                <span className="font-code-md text-xs text-on-surface-variant">{shortAddress}</span>
               </div>
             )}
           </div>
