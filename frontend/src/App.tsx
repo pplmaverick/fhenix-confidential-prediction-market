@@ -136,16 +136,30 @@ export default function App() {
         ])
         .execute()
 
-      addLog('Encryption done. Sending placeBet tx...')
+      addLog('Encryption done. Estimating gas...')
 
-      const hash = await walletClient.writeContract({
+      const txParams = {
         address: CONTRACT_ADDRESS,
         abi: ABI,
         functionName: 'placeBet',
         args: [BigInt(marketIdParam), encAmount as any, encChoice as any],
         value: amountWei,
-        chain: arbitrumSepolia,
         account: walletClient.account!,
+      } as const
+
+      const [gasEstimate, feeData] = await Promise.all([
+        publicClient!.estimateGas(txParams),
+        publicClient!.estimateFeesPerGas(),
+      ])
+
+      addLog('Sending placeBet tx...')
+
+      const hash = await walletClient.writeContract({
+        ...txParams,
+        chain: arbitrumSepolia,
+        gas: gasEstimate * 130n / 100n, // +30% buffer
+        maxFeePerGas: feeData.maxFeePerGas ?? undefined,
+        maxPriorityFeePerGas: feeData.maxPriorityFeePerGas ?? undefined,
       })
 
       addLog(`placeBet tx sent: ${hash}`)
@@ -167,13 +181,25 @@ export default function App() {
       addLog(
         `Sending claimWinnings(betId=${claimBetId}, marketId=${claimMarketId})...`,
       )
-      const hash = await walletClient.writeContract({
+      const claimParams = {
         address: CONTRACT_ADDRESS,
         abi: ABI,
         functionName: 'claimWinnings',
         args: [BigInt(claimBetId), BigInt(claimMarketId)],
-        chain: arbitrumSepolia,
         account: walletClient.account!,
+      } as const
+
+      const [claimGas, claimFee] = await Promise.all([
+        publicClient!.estimateGas(claimParams),
+        publicClient!.estimateFeesPerGas(),
+      ])
+
+      const hash = await walletClient.writeContract({
+        ...claimParams,
+        chain: arbitrumSepolia,
+        gas: claimGas * 130n / 100n,
+        maxFeePerGas: claimFee.maxFeePerGas ?? undefined,
+        maxPriorityFeePerGas: claimFee.maxPriorityFeePerGas ?? undefined,
       })
       addLog(`claimWinnings tx sent: ${hash}`)
     } catch (e: any) {
