@@ -1,5 +1,6 @@
 import { HardhatUserConfig } from "hardhat/config";
 import "@nomicfoundation/hardhat-ethers";
+import "@nomicfoundation/hardhat-verify";
 import "@cofhe/hardhat-plugin";
 import * as dotenv from "dotenv";
 
@@ -11,7 +12,7 @@ const config: HardhatUserConfig = {
   solidity: {
     version: "0.8.28",
     settings: {
-      evmVersion: "cancun", // 必要：FHE contracts 使用 transient storage opcodes
+      evmVersion: "cancun",
       optimizer: {
         enabled: true,
         runs: 200,
@@ -26,6 +27,19 @@ const config: HardhatUserConfig = {
       accounts: PRIVATE_KEY ? [`0x${PRIVATE_KEY}`] : [],
       chainId: 421614,
     },
+  },
+  etherscan: {
+    apiKey: process.env.ETHERSCAN_API_KEY ?? "",
+    customChains: [
+      {
+        network: "arbitrumSepolia",
+        chainId: 421614,
+        urls: {
+          apiURL: "https://api.etherscan.io/v2/api?chainid=421614",
+          browserURL: "https://sepolia.arbiscan.io",
+        },
+      },
+    ],
   },
 };
 
