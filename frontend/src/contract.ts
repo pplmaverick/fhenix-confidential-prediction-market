@@ -43,6 +43,23 @@ export const CHAIN_ID = 421614 // Arbitrum Sepolia
 
 export const ABI = [
   {
+    inputs: [{ internalType: 'string', name: 'question', type: 'string' }],
+    name: 'createMarket',
+    outputs: [{ internalType: 'uint256', name: 'marketId', type: 'uint256' }],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: 'uint256', name: 'marketId', type: 'uint256' },
+      { indexed: false, internalType: 'string', name: 'question', type: 'string' },
+      { indexed: false, internalType: 'address', name: 'owner', type: 'address' },
+    ],
+    name: 'MarketCreated',
+    type: 'event',
+  },
+  {
     inputs: [
       { internalType: 'uint256', name: 'marketId', type: 'uint256' },
       {
