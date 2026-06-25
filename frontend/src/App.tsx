@@ -16,6 +16,7 @@ import { MarketCard } from './components/MarketCard'
 import { MarketSelector } from './components/MarketSelector'
 import { PlaceBetCard } from './components/PlaceBetCard'
 import { ActivityLog } from './components/ActivityLog'
+import { CreateMarketCard } from './components/CreateMarketCard'
 
 type LogEntry = { time: string; msg: string }
 
@@ -332,8 +333,8 @@ export default function App() {
             />
           </div>
 
-          {/* Right: Place Bet */}
-          <div className="lg:col-span-5">
+          {/* Right: Place Bet + Create Market */}
+          <div className="lg:col-span-5 flex flex-col gap-lg">
             <PlaceBetCard
               marketId={marketId}
               handlePlaceBet={handlePlaceBet}
@@ -344,6 +345,7 @@ export default function App() {
               isConnected={isConnected}
               wrongChain={wrongChain}
             />
+            <CreateMarketCard addLog={addLog} isConnected={isConnected} />
           </div>
         </div>
 

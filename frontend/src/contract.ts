@@ -1,5 +1,44 @@
 export const CONTRACT_ADDRESS = '0x072A3A0C04Cf8CDcaf5B4A73a4Ed4fF5A841531f' as const
 
+export const FACTORY_ADDRESS = '0x575FF2bb9f8F5Ef5Bd0198F316Cd7a1a7e8482FA' as const
+
+export const FACTORY_ABI = [
+  {
+    inputs: [
+      { internalType: 'string', name: '_question', type: 'string' },
+      { internalType: 'string[]', name: '_options', type: 'string[]' },
+      { internalType: 'uint256', name: '_endTime', type: 'uint256' },
+    ],
+    name: 'createMarket',
+    outputs: [{ internalType: 'address', name: 'marketAddr', type: 'address' }],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [],
+    name: 'getMarkets',
+    outputs: [{ internalType: 'address[]', name: '', type: 'address[]' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    name: 'markets',
+    outputs: [{ internalType: 'address', name: '', type: 'address' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: 'address', name: 'market', type: 'address' },
+      { indexed: true, internalType: 'address', name: 'creator', type: 'address' },
+    ],
+    name: 'MarketCreated',
+    type: 'event',
+  },
+] as const
+
 export const CHAIN_ID = 421614 // Arbitrum Sepolia
 
 export const ABI = [

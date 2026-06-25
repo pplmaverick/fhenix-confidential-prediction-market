@@ -75,6 +75,19 @@ contract ConfidentialPredictionMarket {
         emit MarketCreated(marketId, question, msg.sender);
     }
 
+    function createMarketFor(string calldata question, address owner) external returns (uint256 marketId) {
+        marketId = nextMarketId++;
+        markets[marketId] = Market({
+            question: question,
+            owner: owner,
+            locked: false,
+            resolved: false,
+            outcome: false,
+            totalPool: 0
+        });
+        emit MarketCreated(marketId, question, owner);
+    }
+
     /**
      * @notice Place a bet with encrypted choice and encrypted amount.
      * @param marketId  Target market.
