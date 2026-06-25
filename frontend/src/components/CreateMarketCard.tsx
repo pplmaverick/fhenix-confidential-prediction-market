@@ -15,20 +15,30 @@ export function CreateMarketCard({ addLog, isConnected, onMarketCreated }: Creat
   const publicClient = usePublicClient()
 
   const [question, setQuestion] = useState('')
+  const [options, setOptions] = useState('YES, NO')
+  const [endTime, setEndTime] = useState('')
   const [busy, setBusy] = useState(false)
+
+  function buildQuestion() {
+    const parts = [question.trim()]
+    if (options.trim() && options.trim() !== 'YES, NO') parts.push(`Options: ${options.trim()}`)
+    if (endTime.trim()) parts.push(`Ends: ${endTime.trim()}`)
+    return parts.join(' | ')
+  }
 
   async function handleCreate() {
     if (!walletClient || !publicClient || !question.trim()) return
     setBusy(true)
+    const fullQuestion = buildQuestion()
     try {
-      addLog(`Creating market: "${question}"...`)
+      addLog(`Creating market: "${fullQuestion}"...`)
 
       const feeData = await publicClient.estimateFeesPerGas()
       const hash = await walletClient.writeContract({
         address: CONTRACT_ADDRESS,
         abi: ABI,
         functionName: 'createMarket',
-        args: [question.trim()],
+        args: [fullQuestion],
         chain: arbitrumSepolia,
         account: walletClient.account!,
         maxFeePerGas: feeData.maxFeePerGas ? feeData.maxFeePerGas * 2n : parseGwei('0.1'),
@@ -52,6 +62,8 @@ export function CreateMarketCard({ addLog, isConnected, onMarketCreated }: Creat
       }
 
       setQuestion('')
+      setOptions('YES, NO')
+      setEndTime('')
       onMarketCreated?.()
     } catch (e: any) {
       addLog(`Error: ${e.message ?? String(e)}`)
@@ -89,7 +101,33 @@ export function CreateMarketCard({ addLog, isConnected, onMarketCreated }: Creat
             placeholder="Will ETH reach $5000 by end of 2025?"
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && canCreate && handleCreate()}
+            disabled={busy}
+          />
+        </div>
+
+        <div>
+          <label className="font-label-caps text-[11px] text-on-surface-variant block mb-xs uppercase tracking-widest">
+            Options (comma-separated)
+          </label>
+          <input
+            className="w-full bg-surface-container-lowest border border-outline-variant rounded-xl py-md px-md text-on-surface font-body-sm text-sm focus:ring-1 focus:ring-primary focus:border-primary focus:outline-none transition-all"
+            placeholder="YES, NO"
+            value={options}
+            onChange={(e) => setOptions(e.target.value)}
+            disabled={busy}
+          />
+        </div>
+
+        <div>
+          <label className="font-label-caps text-[11px] text-on-surface-variant block mb-xs uppercase tracking-widest">
+            End Time (optional)
+          </label>
+          <input
+            className="w-full bg-surface-container-lowest border border-outline-variant rounded-xl py-md px-md text-on-surface font-body-sm text-sm focus:ring-1 focus:ring-primary focus:border-primary focus:outline-none transition-all"
+            type="text"
+            placeholder="2026-12-31T23:59"
+            value={endTime}
+            onChange={(e) => setEndTime(e.target.value)}
             disabled={busy}
           />
         </div>
