@@ -99,21 +99,18 @@ export default function App() {
     abi: ABI,
     functionName: 'markets',
     args: [BigInt(marketId || '0')],
-    query: { enabled: isConnected },
   })
 
-  const { data: nextMarketId } = useReadContract({
+  const { data: nextMarketId, refetch: refetchNextMarketId } = useReadContract({
     address: CONTRACT_ADDRESS,
     abi: ABI,
     functionName: 'nextMarketId',
-    query: { enabled: isConnected },
   })
 
   const { data: nextBetId } = useReadContract({
     address: CONTRACT_ADDRESS,
     abi: ABI,
     functionName: 'nextBetId',
-    query: { enabled: isConnected },
   })
 
   const wrongChain = isConnected && chainId !== CHAIN_ID
@@ -372,26 +369,24 @@ export default function App() {
 
       <main className="flex-grow w-full max-w-container-max mx-auto px-gutter py-xl">
 
-        {/* Market Selector */}
-        {isConnected && (
-          <div className="mb-xl">
-            <div className="flex items-center justify-between mb-md">
-              <h3 className="font-headline-lg-mobile text-headline-lg-mobile font-bold text-on-surface">
-                All Markets
-              </h3>
-              <span className="font-code-md text-[11px] text-on-surface-variant">
-                {nextMarketId?.toString() ?? '0'} markets
-              </span>
-            </div>
-            <div className="confidential-card rounded-xl p-md">
-              <MarketSelector
-                marketCount={Number(nextMarketId ?? 0n)}
-                selectedId={marketId}
-                onSelect={(id) => { setMarketId(id); refetchMarket() }}
-              />
-            </div>
+        {/* Market Selector — always visible, no wallet required */}
+        <div className="mb-xl">
+          <div className="flex items-center justify-between mb-md">
+            <h3 className="font-headline-lg-mobile text-headline-lg-mobile font-bold text-on-surface">
+              All Markets
+            </h3>
+            <span className="font-code-md text-[11px] text-on-surface-variant">
+              {nextMarketId?.toString() ?? '0'} markets
+            </span>
           </div>
-        )}
+          <div className="confidential-card rounded-xl p-md">
+            <MarketSelector
+              marketCount={Number(nextMarketId ?? 0n)}
+              selectedId={marketId}
+              onSelect={(id) => { setMarketId(id); refetchMarket() }}
+            />
+          </div>
+        </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-lg items-start">
           {/* Left: Market Info */}
@@ -429,7 +424,7 @@ export default function App() {
               isConnected={isConnected}
               wrongChain={wrongChain}
             />
-            <CreateMarketCard addLog={addLog} isConnected={isConnected} />
+            <CreateMarketCard addLog={addLog} isConnected={isConnected} onMarketCreated={refetchNextMarketId} />
           </div>
         </div>
 

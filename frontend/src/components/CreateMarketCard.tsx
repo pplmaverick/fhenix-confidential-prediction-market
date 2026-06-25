@@ -7,9 +7,10 @@ import { FACTORY_ADDRESS, FACTORY_ABI } from '../contract'
 interface CreateMarketCardProps {
   addLog: (msg: string) => void
   isConnected: boolean
+  onMarketCreated?: () => void
 }
 
-export function CreateMarketCard({ addLog, isConnected }: CreateMarketCardProps) {
+export function CreateMarketCard({ addLog, isConnected, onMarketCreated }: CreateMarketCardProps) {
   const { data: walletClient } = useWalletClient()
   const publicClient = usePublicClient()
 
@@ -64,6 +65,7 @@ export function CreateMarketCard({ addLog, isConnected }: CreateMarketCardProps)
 
       setQuestion('')
       setEndTime('')
+      onMarketCreated?.()
     } catch (e: any) {
       addLog(`Error: ${e.message ?? String(e)}`)
     } finally {
