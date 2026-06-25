@@ -35,6 +35,7 @@ export default function App() {
   const [marketId, setMarketId] = useState('0')
   const [logs, setLogs] = useState<LogEntry[]>([])
   const [busy, setBusy] = useState(false)
+  const [showCreateForm, setShowCreateForm] = useState(false)
 
   const addLog = useCallback((msg: string) => {
     setLogs((prev) => [...prev, { time: timestamp(), msg }])
@@ -375,10 +376,42 @@ export default function App() {
             <h3 className="font-headline-lg-mobile text-headline-lg-mobile font-bold text-on-surface">
               All Markets
             </h3>
-            <span className="font-code-md text-[11px] text-on-surface-variant">
-              {nextMarketId?.toString() ?? '0'} markets
-            </span>
+            <div className="flex items-center gap-md">
+              <span className="font-code-md text-[11px] text-on-surface-variant">
+                {nextMarketId?.toString() ?? '0'} markets
+              </span>
+              <button
+                onClick={() => setShowCreateForm((v) => !v)}
+                className={`flex items-center gap-xs px-md py-xs rounded-lg text-[12px] font-bold border transition-all duration-200 ${
+                  showCreateForm
+                    ? 'border-outline-variant text-on-surface-variant hover:border-primary/50 hover:text-on-surface'
+                    : 'border-primary text-primary hover:bg-primary/10'
+                }`}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 15 }}>
+                  {showCreateForm ? 'close' : 'add'}
+                </span>
+                {showCreateForm ? 'Cancel' : 'Create Market'}
+              </button>
+            </div>
           </div>
+
+          {/* Collapsible Create Market form */}
+          <div
+            className={`overflow-hidden transition-all duration-300 ease-in-out ${
+              showCreateForm ? 'max-h-[520px] opacity-100 mb-md' : 'max-h-0 opacity-0'
+            }`}
+          >
+            <CreateMarketCard
+              addLog={addLog}
+              isConnected={isConnected}
+              onMarketCreated={() => {
+                refetchNextMarketId()
+                setShowCreateForm(false)
+              }}
+            />
+          </div>
+
           <div className="confidential-card rounded-xl p-md">
             <MarketSelector
               marketCount={Number(nextMarketId ?? 0n)}
@@ -412,7 +445,7 @@ export default function App() {
             />
           </div>
 
-          {/* Right: Place Bet + Create Market */}
+          {/* Right: Place Bet */}
           <div className="lg:col-span-5 flex flex-col gap-lg">
             <PlaceBetCard
               marketId={marketId}
@@ -424,7 +457,6 @@ export default function App() {
               isConnected={isConnected}
               wrongChain={wrongChain}
             />
-            <CreateMarketCard addLog={addLog} isConnected={isConnected} onMarketCreated={refetchNextMarketId} />
           </div>
         </div>
 
