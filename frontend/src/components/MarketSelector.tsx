@@ -23,7 +23,7 @@ export function MarketSelector({ marketCount, selectedId, onSelect }: MarketSele
   if (marketCount === 0) {
     return (
       <div className="text-center py-lg text-on-surface-variant font-body-sm text-body-sm">
-        尚無市場。請等待 owner 建立市場。
+        No markets yet. Please wait for the owner to create one.
       </div>
     )
   }

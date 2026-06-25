@@ -7,7 +7,7 @@ interface NavbarProps {
   cofheReady: boolean
 }
 
-// Connectors 直接在 onClick 裡建立（參考 arc/tempo 成功模式）
+// Connectors are created inline in onClick (arc/tempo pattern)
 const metaMaskConnector = () => injected()
 
 const okxConnector = () =>
@@ -183,11 +183,11 @@ export function Navbar({ cofheReady }: NavbarProps) {
           </div>
         </div>
 
-        {/* 錯誤提示 */}
+        {/* Connection error */}
         {connectError && (
           <div className="px-gutter pb-sm">
             <p className="text-error text-xs font-label-caps bg-error-container/20 border border-error/30 rounded px-md py-xs">
-              連線失敗：{connectError.message}
+              Connection failed: {connectError.message}
             </p>
           </div>
         )}

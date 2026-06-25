@@ -35,7 +35,7 @@ export function PlaceBetCard({
   const [choice, setChoice] = useState<'yes' | 'no'>('yes')
   const [tab, setTab] = useState<'bet' | 'claim'>('bet')
 
-  // 切換市場時重置輸入金額，避免舊數值殘留
+  // reset bet amount on market switch to avoid stale values
   useEffect(() => {
     setBetAmount('0.001')
   }, [marketId])
@@ -43,7 +43,7 @@ export function PlaceBetCard({
   const { address } = useAccount()
   const { data: balance } = useBalance({ address })
 
-  // 用 marketBets(marketId, index) 抓當前市場的 betId 列表（試 50 個 slot）
+  // fetch betId list for current market via marketBets(marketId, index) — probe 50 slots
   const MARKET_BET_SLOTS = 50
   const marketBetContracts = Array.from({ length: MARKET_BET_SLOTS }, (_, i) => ({
     address: CONTRACT_ADDRESS as `0x${string}`,
@@ -56,7 +56,7 @@ export function PlaceBetCard({
     query: { enabled: isConnected && tab === 'claim' },
   })
 
-  // 成功的就是有效 betId，失敗的是 out-of-bounds（此市場沒那麼多 bet）
+  // successful results are valid betIds; failures are out-of-bounds slots
   const marketBetIds: bigint[] = marketBetResults
     ? marketBetResults
         .filter(r => r.status === 'success')
@@ -64,7 +64,7 @@ export function PlaceBetCard({
     : []
 
   const balanceEth = balance ? parseFloat(formatEther(balance.value)) : null
-  const GAS_RESERVE = 0.001 // 預留 gas
+  const GAS_RESERVE = 0.001 // reserve for gas
   const maxBet = balanceEth !== null ? Math.max(0, balanceEth - GAS_RESERVE) : null
 
   const canBet = isConnected && cofheReady && !wrongChain && !busy
@@ -162,7 +162,7 @@ export function PlaceBetCard({
               </label>
               {balanceEth !== null && (
                 <span className="font-code-md text-[11px] text-on-surface-variant">
-                  餘額：<span className="text-on-surface">{balanceEth.toFixed(4)}</span> ETH
+                  Balance: <span className="text-on-surface">{balanceEth.toFixed(4)}</span> ETH
                 </span>
               )}
             </div>
@@ -271,7 +271,7 @@ export function PlaceBetCard({
                 }`}
               />
               <span>
-                {wrongChain && '請在 MetaMask 切換到 Arbitrum Sepolia，CoFHE 才能初始化'}
+                {wrongChain && 'Please switch to Arbitrum Sepolia in MetaMask to initialize CoFHE'}
                 {!wrongChain && cofheReady && cofheStatus !== 'signing' && 'CoFHE Ready — bets are encrypted'}
                 {!wrongChain && cofheReady && cofheStatus === 'signing' && (
                   <>
@@ -283,7 +283,7 @@ export function PlaceBetCard({
                   </>
                 )}
                 {!wrongChain && !cofheReady && cofheStatus === 'connecting' && 'Connecting to CoFHE network...'}
-                {!wrongChain && !cofheReady && cofheStatus === 'error' && 'CoFHE 初始化失敗，請重新整理頁面'}
+                {!wrongChain && !cofheReady && cofheStatus === 'error' && 'CoFHE initialization failed, please refresh the page'}
                 {!wrongChain && !cofheReady && !cofheStatus && 'Initialising CoFHE client...'}
               </span>
             </div>
@@ -308,20 +308,20 @@ export function PlaceBetCard({
         /* Claim Winnings Tab */
         <div className="space-y-md">
           <p className="font-body-sm text-body-sm text-on-surface-variant">
-            市場結算後，你在 <span className="text-primary font-bold">Market #{marketId}</span> 的未領取投注會自動列出。
+            After market settlement, your unclaimed bets in <span className="text-primary font-bold">Market #{marketId}</span> will be listed automatically.
           </p>
 
           {!isConnected ? (
-            <p className="text-on-surface-variant text-sm text-center py-lg">請先連接錢包</p>
+            <p className="text-on-surface-variant text-sm text-center py-lg">Please connect your wallet first</p>
           ) : betsLoading ? (
             <div className="text-center py-lg">
               <span className="material-symbols-outlined text-on-surface-variant/50 animate-spin block mb-sm" style={{ fontSize: 32 }}>progress_activity</span>
-              <p className="text-on-surface-variant font-body-sm text-body-sm">載入投注中...</p>
+              <p className="text-on-surface-variant font-body-sm text-body-sm">Loading bets...</p>
             </div>
           ) : marketBetIds.length === 0 ? (
             <div className="text-center py-lg border border-outline-variant/30 rounded-xl">
               <span className="material-symbols-outlined text-on-surface-variant/30 block mb-sm" style={{ fontSize: 40 }}>redeem</span>
-              <p className="text-on-surface-variant font-body-sm text-body-sm">此市場尚無投注</p>
+              <p className="text-on-surface-variant font-body-sm text-body-sm">No bets in this market</p>
             </div>
           ) : (
             <div className="space-y-sm">

@@ -50,7 +50,7 @@ export default function App() {
     ;(async () => {
       try {
         setCofheStatus('connecting')
-        addLog('CoFHE: 初始化中...')
+        addLog('CoFHE: Initializing...')
 
         await Promise.race([
           cofheClient.connect(publicClient as any, walletClient as any),
@@ -65,7 +65,7 @@ export default function App() {
           addLog('CoFHE client ready ✓')
         }
 
-        // permit 背景執行，失敗不影響下注
+        // permit runs in background; failure does not block betting
         if (!cancelled) {
           try {
             setCofheStatus('signing')
@@ -77,14 +77,14 @@ export default function App() {
           } catch (permitErr: any) {
             if (!cancelled) {
               setCofheStatus('ready')
-              addLog(`FHE permit (略過): ${permitErr.message}`)
+              addLog(`FHE permit (skipped): ${permitErr.message}`)
             }
           }
         }
       } catch (e: any) {
         if (!cancelled) {
           setCofheStatus('error')
-          addLog(`CoFHE 錯誤: ${e.message}`)
+          addLog(`CoFHE error: ${e.message}`)
         }
       }
     })()
@@ -137,7 +137,7 @@ export default function App() {
         ])
         .execute()
 
-      // 明確轉換為 viem tuple 格式，確保 signature 有 0x 前綴
+      // Explicitly convert to viem tuple format, ensuring signature has 0x prefix
       const toStruct = (enc: any) => ({
         ctHash: BigInt(enc.ctHash),
         securityZone: Number(enc.securityZone),
@@ -182,8 +182,8 @@ export default function App() {
     if (!walletClient || !cofheReady) return
     setBusy(true)
     try {
-      // ── Pre-check: pendingPayouts[betId] 是否已設定 ─────────────────
-      // euint64 is bytes32，若非 0x000...0 代表 claimWinnings 已執行過
+      // ── Pre-check: whether pendingPayouts[betId] is already set ────
+      // euint64 is bytes32; non-zero means claimWinnings has already run
       let ctHashForDecrypt: bigint
 
       let storedCtHash: `0x${string}` = '0x0000000000000000000000000000000000000000000000000000000000000000'
@@ -195,13 +195,13 @@ export default function App() {
           args: [BigInt(claimBetId)],
         }) as `0x${string}`
       } catch {
-        // 讀取失敗就當作尚未設定，繼續呼叫 claimWinnings
+        // treat read failure as not-yet-set and proceed to claimWinnings
       }
 
       const alreadyClaimed = BigInt(storedCtHash) !== 0n
 
       if (alreadyClaimed) {
-        addLog(`pendingPayouts 已有 ctHash，跳過 claimWinnings`)
+        addLog(`pendingPayouts ctHash already set, skipping claimWinnings`)
         ctHashForDecrypt = BigInt(storedCtHash)
       } else {
         // ── Step 1: claimWinnings — FHE on-chain compute ─────────────
@@ -219,18 +219,18 @@ export default function App() {
           maxPriorityFeePerGas: claimFee.maxPriorityFeePerGas ?? parseGwei('0.001'),
         })
         addLog(`claimWinnings tx: ${hash}`)
-        addLog('等待鏈上確認...')
+        addLog('Waiting for on-chain confirmation...')
         const receipt = await publicClient!.waitForTransactionReceipt({ hash })
 
         if (receipt.status === 'reverted') {
-          addLog(`❌ claimWinnings reverted — 查看: https://sepolia.arbiscan.io/tx/${hash}`)
+          addLog(`❌ claimWinnings reverted — view: https://sepolia.arbiscan.io/tx/${hash}`)
           return
         }
 
         // parse WinningsClaimed event from receipt logs
         const claimLogs = parseEventLogs({ abi: ABI, eventName: 'WinningsClaimed', logs: receipt.logs })
         if (claimLogs.length === 0) {
-          addLog('⚠️ 找不到 WinningsClaimed event，可能此投注不符合領取條件')
+          addLog('⚠️ WinningsClaimed event not found — this bet may not be eligible for claiming')
           return
         }
         const encPayoutCtHashBytes32 = (claimLogs[0].args as { encPayoutCtHash: `0x${string}` }).encPayoutCtHash
@@ -240,15 +240,15 @@ export default function App() {
 
       // ── Step 2: Decrypt via CoFHE threshold network ────────────────
       const step2Label = alreadyClaimed ? '[1/2]' : '[2/3]'
-      addLog(`${step2Label} CoFHE network 解密中（約 20-60 秒）...`)
+      addLog(`${step2Label} CoFHE network decrypting (20-60s)...`)
       const decryptResult = await cofheClient.decryptForTx(ctHashForDecrypt).withoutPermit().execute()
       const payoutWei = decryptResult.decryptedValue
       const payoutEth = formatEther(payoutWei)
       if (payoutWei === 0n) {
-        addLog('⚠️ 解密結果為 0 ETH（此投注為虧損投注，無 payout）')
+        addLog('⚠️ Decryption result is 0 ETH (losing bet, no payout)')
         return
       }
-      addLog(`解密完成！Payout = ${payoutEth} ETH`)
+      addLog(`Decryption complete. Payout = ${payoutEth} ETH`)
 
       // ── Step 3: withdraw — actual ETH transfer ─────────────────────
       const step3Label = alreadyClaimed ? '[2/2]' : '[3/3]'
@@ -272,7 +272,7 @@ export default function App() {
       })
       addLog(`withdraw tx: ${withdrawHash}`)
       await publicClient!.waitForTransactionReceipt({ hash: withdrawHash })
-      addLog(`✅ 提款成功！收到 ${payoutEth} ETH`)
+      addLog(`✅ Withdrawal successful! Received ${payoutEth} ETH`)
     } catch (e: any) {
       addLog(`Error: ${e.message ?? String(e)}`)
     } finally {
