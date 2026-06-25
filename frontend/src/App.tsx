@@ -183,7 +183,85 @@ export default function App() {
     if (!walletClient || !cofheReady) return
     setBusy(true)
     try {
-      // ── Pre-check: whether pendingPayouts[betId] is already set ────
+      // ── Pre-check A: winner pool ─────────────────────────────────────
+      let winnerPool = 0n
+      try {
+        winnerPool = await publicClient!.readContract({
+          address: CONTRACT_ADDRESS,
+          abi: ABI,
+          functionName: 'winnerPools',
+          args: [BigInt(claimMarketId)],
+        }) as bigint
+      } catch { /* treat as not set */ }
+
+      if (winnerPool === 0n) {
+        // ── Step W1: revealWinnerPool — FHE sum of winning bets ────────
+        addLog(`[W1] revealWinnerPool(marketId=${claimMarketId}) — computing winner pool via FHE...`)
+        const revealFee = await publicClient!.estimateFeesPerGas()
+        const revealHash = await walletClient.writeContract({
+          address: CONTRACT_ADDRESS,
+          abi: ABI,
+          functionName: 'revealWinnerPool',
+          args: [BigInt(claimMarketId)],
+          chain: arbitrumSepolia,
+          account: walletClient.account!,
+          gas: 5_000_000n,
+          maxFeePerGas: revealFee.maxFeePerGas ? revealFee.maxFeePerGas * 2n : parseGwei('0.1'),
+          maxPriorityFeePerGas: revealFee.maxPriorityFeePerGas ?? parseGwei('0.001'),
+        })
+        addLog(`revealWinnerPool tx: ${revealHash}`)
+        addLog('Waiting for on-chain confirmation...')
+        const revealReceipt = await publicClient!.waitForTransactionReceipt({ hash: revealHash })
+
+        if (revealReceipt.status === 'reverted') {
+          addLog(`❌ revealWinnerPool reverted — view: https://sepolia.arbiscan.io/tx/${revealHash}`)
+          return
+        }
+
+        const revealLogs = parseEventLogs({ abi: ABI, eventName: 'WinnerPoolRevealed', logs: revealReceipt.logs })
+        if (revealLogs.length === 0) {
+          addLog('⚠️ WinnerPoolRevealed event not found')
+          return
+        }
+        const encWinnerPoolCtHash = BigInt(
+          (revealLogs[0].args as { encWinnerPoolCtHash: `0x${string}` }).encWinnerPoolCtHash
+        )
+        addLog(`revealWinnerPool ✓ — ctHash: 0x${encWinnerPoolCtHash.toString(16).slice(0, 16)}...`)
+
+        // ── Step W2: decrypt winner pool ───────────────────────────────
+        addLog('[W2] CoFHE network decrypting (20-60s)...')
+        const wpDecrypt = await cofheClient.decryptForTx(encWinnerPoolCtHash).withoutPermit().execute()
+        const plainWinnerPool = wpDecrypt.decryptedValue
+        addLog(`Winner pool decrypted: ${formatEther(plainWinnerPool)} ETH`)
+
+        // ── Step W3: submitWinnerPool — store plaintext on-chain ───────
+        addLog(`[W3] submitWinnerPool(marketId=${claimMarketId})...`)
+        const submitFee = await publicClient!.estimateFeesPerGas()
+        const submitHash = await walletClient.writeContract({
+          address: CONTRACT_ADDRESS,
+          abi: ABI,
+          functionName: 'submitWinnerPool',
+          args: [
+            BigInt(claimMarketId),
+            plainWinnerPool,
+            BigInt(wpDecrypt.ctHash.toString()),
+            wpDecrypt.signature,
+          ],
+          chain: arbitrumSepolia,
+          account: walletClient.account!,
+          gas: 500_000n,
+          maxFeePerGas: submitFee.maxFeePerGas ? submitFee.maxFeePerGas * 2n : parseGwei('0.1'),
+          maxPriorityFeePerGas: submitFee.maxPriorityFeePerGas ?? parseGwei('0.001'),
+        })
+        addLog(`submitWinnerPool tx: ${submitHash}`)
+        await publicClient!.waitForTransactionReceipt({ hash: submitHash })
+        winnerPool = plainWinnerPool
+        addLog(`✓ Winner pool set: ${formatEther(winnerPool)} ETH`)
+      } else {
+        addLog(`Winner pool: ${formatEther(winnerPool)} ETH (already set)`)
+      }
+
+      // ── Pre-check B: pendingPayouts[betId] already set? ─────────────
       // euint64 is bytes32; non-zero means claimWinnings has already run
       let ctHashForDecrypt: bigint
 
@@ -228,7 +306,6 @@ export default function App() {
           return
         }
 
-        // parse WinningsClaimed event from receipt logs
         const claimLogs = parseEventLogs({ abi: ABI, eventName: 'WinningsClaimed', logs: receipt.logs })
         if (claimLogs.length === 0) {
           addLog('⚠️ WinningsClaimed event not found — this bet may not be eligible for claiming')
@@ -243,17 +320,23 @@ export default function App() {
       const step2Label = alreadyClaimed ? '[1/2]' : '[2/3]'
       addLog(`${step2Label} CoFHE network decrypting (20-60s)...`)
       const decryptResult = await cofheClient.decryptForTx(ctHashForDecrypt).withoutPermit().execute()
-      const payoutWei = decryptResult.decryptedValue
-      const payoutEth = formatEther(payoutWei)
-      if (payoutWei === 0n) {
+      const plainBetAmount = decryptResult.decryptedValue
+      if (plainBetAmount === 0n) {
         addLog('⚠️ Decryption result is 0 ETH (losing bet, no payout)')
         return
       }
-      addLog(`Decryption complete. Payout = ${payoutEth} ETH`)
 
-      // ── Step 3: withdraw — actual ETH transfer ─────────────────────
+      // Compute proportional payout client-side for display
+      const totalPool = BigInt((marketData as any)?.[5] ?? 0n)
+      const proportionalPayout = totalPool > 0n && winnerPool > 0n
+        ? (plainBetAmount * totalPool) / winnerPool
+        : plainBetAmount
+      const payoutEth = formatEther(proportionalPayout)
+      addLog(`Decryption complete. Bet = ${formatEther(plainBetAmount)} ETH → proportional payout = ${payoutEth} ETH`)
+
+      // ── Step 3: withdraw — proportional ETH transfer ───────────────
       const step3Label = alreadyClaimed ? '[2/2]' : '[3/3]'
-      addLog(`${step3Label} withdraw(betId=${claimBetId}, payout=${payoutEth} ETH)...`)
+      addLog(`${step3Label} withdraw(betId=${claimBetId}, marketId=${claimMarketId})...`)
       const withdrawFee = await publicClient!.estimateFeesPerGas()
       const withdrawHash = await walletClient.writeContract({
         address: CONTRACT_ADDRESS,
@@ -261,7 +344,8 @@ export default function App() {
         functionName: 'withdraw',
         args: [
           BigInt(claimBetId),
-          payoutWei,
+          BigInt(claimMarketId),
+          plainBetAmount,
           BigInt(decryptResult.ctHash.toString()),
           decryptResult.signature,
         ],

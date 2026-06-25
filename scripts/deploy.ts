@@ -14,8 +14,17 @@ async function main() {
   );
   console.log("Network:", hre.network.name, "(chainId:", (await hre.ethers.provider.getNetwork()).chainId.toString() + ")");
 
+  const feeData = await hre.ethers.provider.getFeeData();
+  console.log(
+    "maxFeePerGas:",
+    feeData.maxFeePerGas ? hre.ethers.formatUnits(feeData.maxFeePerGas, "gwei") + " gwei" : "n/a"
+  );
+
   const Factory = await hre.ethers.getContractFactory("ConfidentialPredictionMarket");
-  const contract = await Factory.deploy();
+  const contract = await Factory.deploy({
+    maxFeePerGas: feeData.maxFeePerGas ? feeData.maxFeePerGas * 2n : undefined,
+    maxPriorityFeePerGas: feeData.maxPriorityFeePerGas ?? undefined,
+  });
   await contract.waitForDeployment();
 
   const address = await contract.getAddress();

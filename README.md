@@ -12,8 +12,8 @@ FHE-encrypted prediction market — bet amounts and choices are sealed on-chain 
 |---|---|
 | Network | Arbitrum Sepolia |
 | Chain ID | 421614 |
-| Contract | `0x072A3A0C04Cf8CDcaf5B4A73a4Ed4fF5A841531f` |
-| Explorer | [View Contract](https://sepolia.arbiscan.io/address/0x072A3A0C04Cf8CDcaf5B4A73a4Ed4fF5A841531f) |
+| Contract | `0x79Dc91B97979E8d3cD6A56039EB2C282163b02aB` |
+| Explorer | [View Contract](https://sepolia.arbiscan.io/address/0x79Dc91B97979E8d3cD6A56039EB2C282163b02aB) |
 
 ---
 
@@ -90,7 +90,7 @@ Decryption is performed off-chain by the Fhenix threshold network, returning `(p
 
 | Contract | Address |
 |---|---|
-| `ConfidentialPredictionMarket` | `0x072A3A0C04Cf8CDcaf5B4A73a4Ed4fF5A841531f` |
+| `ConfidentialPredictionMarket` | `0x79Dc91B97979E8d3cD6A56039EB2C282163b02aB` |
 
 ---
 

@@ -15,10 +15,14 @@ import {
  *
  * Flow:
  *   createMarket → placeBet(encrypted choice + amount) → lockMarket
- *   → submitResult → claimWinnings (FHE computation) → [off-chain decrypt] → withdraw
+ *   → submitResult → revealWinnerPool → [off-chain decrypt] → submitWinnerPool
+ *   → claimWinnings (FHE computation) → [off-chain decrypt] → withdraw (proportional payout)
  *
  * Privacy: bet choices are encrypted on-chain via CoFHE; only the bettor can
  * decrypt their own choice via FHE.allowSender permission.
+ *
+ * Proportional payout: winners split the entire pool proportionally to their stake.
+ *   payout = (betAmount × totalPool) / winnerPool  (multiply first to preserve precision)
  */
 contract ConfidentialPredictionMarket {
     // ─── Data Structures ───────────────────────────────────────────────────────
@@ -45,12 +49,16 @@ contract ConfidentialPredictionMarket {
     uint256 public nextMarketId;
     uint256 public nextBetId;
 
-    mapping(uint256 => Market)   public markets;
-    mapping(uint256 => Bet)      public bets;        // betId → Bet
-    mapping(uint256 => uint256[]) public marketBets; // marketId → betIds
+    mapping(uint256 => Market)    public markets;
+    mapping(uint256 => Bet)       public bets;        // betId → Bet
+    mapping(uint256 => uint256[]) public marketBets;  // marketId → betIds
 
     // Encrypted payout ctHash stored after claimWinnings, for off-chain decryption
-    mapping(uint256 => euint64) public pendingPayouts; // betId → encPayout
+    mapping(uint256 => euint64) public pendingPayouts; // betId → encPayout (bettor's amount if winner, 0 if loser)
+
+    // Winner pool: encrypted ctHash stored after revealWinnerPool, plaintext after submitWinnerPool
+    mapping(uint256 => euint64)  public encWinnerPools; // marketId → encrypted winner pool
+    mapping(uint256 => uint256)  public winnerPools;    // marketId → plaintext winner pool (wei)
 
     // ─── Events ─────────────────────────────────────────────────────────────────
 
@@ -58,6 +66,8 @@ contract ConfidentialPredictionMarket {
     event BetPlaced(uint256 indexed marketId, uint256 indexed betId, address indexed bettor);
     event MarketLocked(uint256 indexed marketId);
     event ResultSubmitted(uint256 indexed marketId, bool outcome);
+    event WinnerPoolRevealed(uint256 indexed marketId, bytes32 encWinnerPoolCtHash);
+    event WinnerPoolSet(uint256 indexed marketId, uint256 plainWinnerPool);
     event WinningsClaimed(uint256 indexed betId, address indexed bettor, bytes32 encPayoutCtHash);
 
     // ─── Actions ────────────────────────────────────────────────────────────────
@@ -147,20 +157,66 @@ contract ConfidentialPredictionMarket {
     }
 
     /**
-     * @notice FHE-based payout computation.
-     *         Privately computes whether the bettor's encrypted choice matches
-     *         the plaintext outcome. Stores the encrypted payout ctHash and
-     *         grants public decryption permission so the bettor can request
-     *         decryption via the CoFHE threshold network.
+     * @notice Compute the encrypted sum of all winning bets' amounts via FHE.
+     *         Anyone can call this after submitResult.
+     *         After calling, decrypt the ctHash off-chain and call submitWinnerPool().
+     */
+    function revealWinnerPool(uint256 marketId) external {
+        Market storage market = markets[marketId];
+        require(market.resolved, "Market not resolved");
+        require(euint64.unwrap(encWinnerPools[marketId]) == bytes32(0), "Already revealed");
+
+        ebool outcomeEnc = FHE.asEbool(market.outcome);
+
+        // FHE sum of all winning bets' encrypted amounts
+        euint64 winnerSum = FHE.asEuint64(0);
+        uint256[] storage betIds = marketBets[marketId];
+        for (uint256 i = 0; i < betIds.length; i++) {
+            Bet storage bet = bets[betIds[i]];
+            ebool isWinner = FHE.eq(bet.encChoice, outcomeEnc);
+            euint64 contribution = FHE.select(isWinner, bet.encAmount, FHE.asEuint64(0));
+            winnerSum = FHE.add(winnerSum, contribution);
+        }
+
+        // Allow threshold network to decrypt the sum
+        FHE.allowPublic(winnerSum);
+        encWinnerPools[marketId] = winnerSum;
+        emit WinnerPoolRevealed(marketId, euint64.unwrap(winnerSum));
+    }
+
+    /**
+     * @notice Store the decrypted winner pool after off-chain CoFHE decryption.
+     *         Call with (plainWinnerPool, ctHash, signature) obtained from decryptForTx().
+     */
+    function submitWinnerPool(
+        uint256 marketId,
+        uint256 plainWinnerPool,
+        uint256 ctHash,
+        bytes calldata signature
+    ) external {
+        require(winnerPools[marketId] == 0, "Winner pool already set");
+        FHE.publishDecryptResult(ctHash, plainWinnerPool, signature);
+        winnerPools[marketId] = plainWinnerPool;
+        emit WinnerPoolSet(marketId, plainWinnerPool);
+    }
+
+    /**
+     * @notice FHE-based winner check.
+     *         Encrypts whether the bettor won; stores the encrypted bet amount (or 0).
+     *         The proportional payout is computed in plaintext in withdraw().
      *
-     * Production withdraw flow (after FHE coprocessor processes):
-     *   1. Call claimWinnings → triggers FHE tasks
-     *   2. Off-chain: client.decryptForTx(encPayoutCtHash)
-     *   3. On-chain: call withdraw(betId, plainPayout, ctHash, signature)
+     * Requires winner pool to be revealed first via revealWinnerPool → submitWinnerPool.
+     *
+     * Withdraw flow (after FHE coprocessor processes):
+     *   1. Call claimWinnings → stores encPayout (encAmount if winner, 0 if loser)
+     *   2. Off-chain: client.decryptForTx(encPayoutCtHash) → (plainBetAmount, ctHash, sig)
+     *   3. On-chain: withdraw(betId, marketId, plainBetAmount, ctHash, sig)
+     *      → payout = (plainBetAmount × totalPool) / winnerPool
      */
     function claimWinnings(uint256 betId, uint256 marketId) external {
         Market storage market = markets[marketId];
         require(market.resolved, "Market not resolved yet");
+        require(winnerPools[marketId] > 0, "Winner pool not set - call revealWinnerPool first");
 
         Bet storage bet = bets[betId];
         require(bet.bettor == msg.sender, "Not your bet");
@@ -173,7 +229,8 @@ contract ConfidentialPredictionMarket {
         // 2. Compare encrypted choice vs encrypted outcome (result is encrypted)
         ebool isWinner = FHE.eq(bet.encChoice, outcomeEnc);
 
-        // 3. Compute encrypted payout: winner → bet amount, loser → 0
+        // 3. Winner gets their encrypted bet amount; loser gets 0
+        //    The proportional scaling (× totalPool / winnerPool) is done in plaintext in withdraw()
         euint64 encPayout = FHE.select(isWinner, bet.encAmount, FHE.asEuint64(0));
 
         // 4. Allow public decryption (anyone can request decrypt via threshold network)
@@ -190,23 +247,36 @@ contract ConfidentialPredictionMarket {
 
     /**
      * @notice Finalize withdrawal after off-chain FHE decryption.
-     *         Caller must obtain (plainPayout, signature) from the CoFHE
-     *         threshold network by decrypting pendingPayouts[betId].
+     *         Proportional payout: (plainBetAmount × totalPool) / winnerPool
+     *         Multiply before divide to avoid integer precision loss.
+     *
+     * @param betId          The bet to withdraw.
+     * @param marketId       The market the bet belongs to.
+     * @param plainBetAmount Decrypted bet amount (winner's stake, or 0 for losers).
+     * @param ctHash         ctHash from CoFHE decryption.
+     * @param signature      Signature from CoFHE threshold network.
      */
     function withdraw(
         uint256 betId,
-        uint256 plainPayout,
+        uint256 marketId,
+        uint256 plainBetAmount,
         uint256 ctHash,
         bytes calldata signature
     ) external {
         require(bets[betId].bettor == msg.sender, "Not your bet");
-        require(address(this).balance >= plainPayout, "Insufficient pool");
 
-        // Publish and verify the decryption result on-chain
-        FHE.publishDecryptResult(ctHash, plainPayout, signature);
+        // Verify the CoFHE decryption result on-chain
+        FHE.publishDecryptResult(ctHash, plainBetAmount, signature);
 
-        if (plainPayout > 0) {
-            payable(msg.sender).transfer(plainPayout);
+        if (plainBetAmount > 0) {
+            Market storage market = markets[marketId];
+            uint256 wPool = winnerPools[marketId];
+            require(wPool > 0, "Winner pool not set");
+
+            // Proportional payout: multiply first, then divide (preserves precision)
+            uint256 payout = (plainBetAmount * market.totalPool) / wPool;
+            require(address(this).balance >= payout, "Insufficient pool");
+            payable(msg.sender).transfer(payout);
         }
     }
 
