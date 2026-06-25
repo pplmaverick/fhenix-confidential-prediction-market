@@ -173,6 +173,7 @@ export function PlaceBetCard({
                 type="number"
                 value={betAmount}
                 onChange={(e) => setBetAmount(e.target.value)}
+                onWheel={(e) => e.currentTarget.blur()}
                 min="0.001"
                 step="0.001"
               />
