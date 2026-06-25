@@ -128,9 +128,8 @@ export function CreateMarketCard({ addLog, isConnected, onMarketCreated }: Creat
           </label>
           <input
             className="w-full bg-surface-container-lowest border border-outline-variant rounded-xl py-md px-md text-on-surface font-body-sm text-sm focus:ring-1 focus:ring-primary focus:border-primary focus:outline-none transition-all"
-            type="datetime-local"
-            placeholder="YYYY-MM-DD HH:MM"
-            lang="en"
+            type="text"
+            placeholder="2026-12-31T23:59"
             value={endTime}
             onChange={(e) => setEndTime(e.target.value)}
             disabled={busy}
