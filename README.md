@@ -1,5 +1,6 @@
 # Fhenix CoFHE Confidential Prediction Market
 
+[![CI](https://github.com/pplmaverick/fhenix-confidential-prediction-market/actions/workflows/test.yml/badge.svg?branch=main)](https://github.com/pplmaverick/fhenix-confidential-prediction-market/actions/workflows/test.yml)
 ![Network](https://img.shields.io/badge/Fhenix_CoFHE_Arbitrum_Sepolia-421614-blue)
 ![Solidity](https://img.shields.io/badge/Solidity-0.8.28-purple)
 ![License](https://img.shields.io/badge/license-MIT-green)
