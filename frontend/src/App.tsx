@@ -71,12 +71,24 @@ export default function App() {
         if (!cancelled) {
           try {
             setCofheStatus('signing')
+
+            // DEBUG: Capture permit signing request
+            console.log('[DEBUG] About to call CoFHE permit signing')
+            console.log('[DEBUG] Provider object:', walletClient)
+            console.log('[DEBUG] Provider type:', typeof walletClient)
+
             await cofheClient.permits.getOrCreateSelfPermit()
             if (!cancelled) {
               setCofheStatus('ready')
               addLog('FHE permit ready ✓')
             }
           } catch (permitErr: any) {
+            // DEBUG: Capture permit signing error
+            console.log('[DEBUG] Permit signing ERROR:', permitErr)
+            console.log('[DEBUG] Error type:', typeof permitErr)
+            console.log('[DEBUG] Error message:', (permitErr as any)?.message)
+            console.log('[DEBUG] Error code:', (permitErr as any)?.code)
+            console.log('[DEBUG] Error data:', JSON.stringify(permitErr, null, 2))
             if (!cancelled) {
               setCofheStatus('ready')
               addLog(`FHE permit (skipped): ${permitErr.message}`)

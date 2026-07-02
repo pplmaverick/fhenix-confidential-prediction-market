@@ -11,6 +11,12 @@ export const wagmiConfig = createConfig({
         id: 'okxwallet',
         name: 'OKX Wallet',
         provider(window) {
+          // DEBUG: OKX compatibility diagnosis
+          console.log('[DEBUG] window.ethereum:', window?.ethereum)
+          console.log('[DEBUG] window.ethereum.isMetaMask:', (window?.ethereum as any)?.isMetaMask)
+          console.log('[DEBUG] window.ethereum.isOKExWallet:', (window?.ethereum as any)?.isOKExWallet)
+          console.log('[DEBUG] window.okxwallet:', (window as any)?.okxwallet)
+          console.log('[DEBUG] providers list:', (window?.ethereum as any)?.providers)
           return (window as any)?.okxwallet
         },
       },
