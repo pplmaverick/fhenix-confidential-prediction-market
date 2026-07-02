@@ -92,6 +92,7 @@ Decryption is performed off-chain by the Fhenix threshold network, returning `(p
 | Contract | Address |
 |---|---|
 | `ConfidentialPredictionMarket` | `0x79Dc91B97979E8d3cD6A56039EB2C282163b02aB` |
+| MarketFactory | 0x575FF2bb9f8F5Ef5Bd0198F316Cd7a1a7e8482FA |
 
 ---
 
@@ -253,14 +254,15 @@ The FHE library's `publishDecryptResult()` expects `uint256` as its first argume
 - Full e2e flow across 7 transactions: deploy → createMarket → placeBet×2 → lockMarket → submitResult → claimWinnings
 - FHE payout `ctHash` correctly emitted; CoFHE decryption task verified
 
-**⬜ M2 — Frontend**
-- React + wagmi frontend
-- Browser-side CoFHE SDK encryption for bet placement
-- Vercel deployment
+**✅ M2 — Frontend (completed)**
+- React + wagmi frontend with browser-side CoFHE SDK encryption
+- MetaMask required (OKX Wallet incompatible with CoFHE permit signing)
+- Deployed: https://fhenix-confidential-prediction-mark.vercel.app
 
-**⬜ M3 — MarketFactory**
-- Support for multiple concurrent prediction markets
-- `MarketFactory` contract + market listing frontend
+**✅ M3 — MarketFactory & Proportional Payout (completed)**
+- MarketFactory contract enabling permissionless market creation
+- Proportional payout logic: winners share pool based on bet size
+- Verified e2e: +0.019971 ETH delta confirmed
 
 **⬜ M4 — Oracle Integration**
 - Chainlink price feed replaces manual `submitResult`
