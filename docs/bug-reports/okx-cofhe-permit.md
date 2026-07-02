@@ -14,6 +14,14 @@
 
 When a user has both MetaMask and OKX Wallet installed, connecting the wallet and initializing CoFHE (`cofheClient.connect()` followed by `cofheClient.permits.getOrCreateSelfPermit()`) results in the `eth_signTypedData_v4` permit signing request failing or being routed to the wrong wallet extension. The user intends to sign with MetaMask, but the request is intercepted by the OKX Wallet provider instead, and the CoFHE permit flow does not complete as expected.
 
+> **Note**: This diagnosis was conducted at the provider injection layer.
+> The exact error message thrown by `getOrCreateSelfPermit()` when the
+> OKX provider handles the `eth_signTypedData_v4` request was not captured
+> in this session, as the provider injection race condition was confirmed
+> upstream before the permit signing step could be isolated with OKX alone.
+> The precise signing failure message may vary depending on OKX Wallet
+> version and whether the user actively selected OKX or MetaMask in the UI.
+
 ## Root Cause
 
 OKX Wallet overrides `window.ethereum` (an EIP-1193 provider injection race condition). On top of that, OKX Wallet sets `isMetaMask: true` on its injected provider, disguising itself as MetaMask.
