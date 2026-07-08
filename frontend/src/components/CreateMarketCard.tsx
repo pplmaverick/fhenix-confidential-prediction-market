@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useWalletClient, usePublicClient } from 'wagmi'
-import { parseGwei, parseEventLogs } from 'viem'
+import { parseEventLogs } from 'viem'
 import { arbitrumSepolia } from 'wagmi/chains'
 import { CONTRACT_ADDRESS, ABI } from '../contract'
+import { estimateGasFees } from '../gas'
 
 interface CreateMarketCardProps {
   addLog: (msg: string) => void
@@ -33,7 +34,6 @@ export function CreateMarketCard({ addLog, isConnected, onMarketCreated }: Creat
     try {
       addLog(`Creating market: "${fullQuestion}"...`)
 
-      const feeData = await publicClient.estimateFeesPerGas()
       const hash = await walletClient.writeContract({
         address: CONTRACT_ADDRESS,
         abi: ABI,
@@ -41,8 +41,7 @@ export function CreateMarketCard({ addLog, isConnected, onMarketCreated }: Creat
         args: [fullQuestion],
         chain: arbitrumSepolia,
         account: walletClient.account!,
-        maxFeePerGas: feeData.maxFeePerGas ? feeData.maxFeePerGas * 2n : parseGwei('0.1'),
-        maxPriorityFeePerGas: feeData.maxPriorityFeePerGas ?? parseGwei('0.001'),
+        ...(await estimateGasFees(publicClient)),
       })
 
       addLog(`createMarket tx: ${hash}`)

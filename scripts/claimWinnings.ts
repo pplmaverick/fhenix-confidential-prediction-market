@@ -1,6 +1,6 @@
 import hre from "hardhat";
 
-const CONTRACT_ADDRESS = "0x072A3A0C04Cf8CDcaf5B4A73a4Ed4fF5A841531f";
+const CONTRACT_ADDRESS = "0x9DE6ba0f6901e366BbCf373F7c8F63b5c955138d";
 const MARKET_ID = 2;
 
 const ABI = [

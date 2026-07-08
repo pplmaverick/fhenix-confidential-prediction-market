@@ -1,4 +1,4 @@
-export const CONTRACT_ADDRESS = '0x79Dc91B97979E8d3cD6A56039EB2C282163b02aB' as const
+export const CONTRACT_ADDRESS = '0x9DE6ba0f6901e366BbCf373F7c8F63b5c955138d' as const
 
 export const FACTORY_ADDRESS = '0x575FF2bb9f8F5Ef5Bd0198F316Cd7a1a7e8482FA' as const
 
@@ -62,17 +62,6 @@ export const ABI = [
   {
     inputs: [
       { internalType: 'uint256', name: 'marketId', type: 'uint256' },
-      {
-        components: [
-          { internalType: 'uint256', name: 'ctHash', type: 'uint256' },
-          { internalType: 'uint8', name: 'securityZone', type: 'uint8' },
-          { internalType: 'uint8', name: 'utype', type: 'uint8' },
-          { internalType: 'bytes', name: 'signature', type: 'bytes' },
-        ],
-        internalType: 'struct InEuint64',
-        name: 'encAmount',
-        type: 'tuple',
-      },
       {
         components: [
           { internalType: 'uint256', name: 'ctHash', type: 'uint256' },
@@ -192,6 +181,41 @@ export const ABI = [
     type: 'function',
   },
   {
+    inputs: [
+      { internalType: 'uint256', name: 'marketId', type: 'uint256' },
+      { internalType: 'uint256', name: 'ctHash', type: 'uint256' },
+      { internalType: 'bytes', name: 'signature', type: 'bytes' },
+    ],
+    name: 'settleNoWinners',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { internalType: 'uint256', name: 'betId', type: 'uint256' },
+      { internalType: 'uint256', name: 'marketId', type: 'uint256' },
+    ],
+    name: 'withdrawRefund',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    name: 'betWithdrawn',
+    outputs: [{ internalType: 'bool', name: '', type: 'bool' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
+    inputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    name: 'noWinnersMarket',
+    outputs: [{ internalType: 'bool', name: '', type: 'bool' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
     anonymous: false,
     inputs: [
       { indexed: true, internalType: 'uint256', name: 'betId', type: 'uint256' },
@@ -217,6 +241,22 @@ export const ABI = [
       { indexed: false, internalType: 'uint256', name: 'plainWinnerPool', type: 'uint256' },
     ],
     name: 'WinnerPoolSet',
+    type: 'event',
+  },
+  {
+    anonymous: false,
+    inputs: [{ indexed: true, internalType: 'uint256', name: 'marketId', type: 'uint256' }],
+    name: 'NoWinnersSettled',
+    type: 'event',
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: 'uint256', name: 'betId', type: 'uint256' },
+      { indexed: true, internalType: 'address', name: 'bettor', type: 'address' },
+      { indexed: false, internalType: 'uint256', name: 'amount', type: 'uint256' },
+    ],
+    name: 'RefundWithdrawn',
     type: 'event',
   },
 ] as const

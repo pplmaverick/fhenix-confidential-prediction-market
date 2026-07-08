@@ -6,10 +6,11 @@ import {
   useReadContract,
   useChainId,
 } from 'wagmi'
-import { parseEther, parseGwei, parseEventLogs, formatEther } from 'viem'
+import { parseEther, parseEventLogs, formatEther } from 'viem'
 import { arbitrumSepolia } from 'wagmi/chains'
 import { Encryptable } from '@cofhe/sdk'
 import { cofheClient } from './cofheClient'
+import { estimateGasFees } from './gas'
 import { CONTRACT_ADDRESS, ABI, CHAIN_ID } from './contract'
 import { Navbar } from './components/Navbar'
 import { MarketCard } from './components/MarketCard'
@@ -129,11 +130,10 @@ export default function App() {
       )
       const amountWei = parseEther(betAmount)
 
-      const [encAmount, encChoice] = await cofheClient
-        .encryptInputs([
-          Encryptable.uint64(amountWei),
-          Encryptable.bool(choice === 'yes'),
-        ])
+      // Only the choice is encrypted client-side; the stake amount is bound to
+      // msg.value on-chain by the contract (see Fix #1: encAmount/msg.value binding)
+      const [encChoice] = await cofheClient
+        .encryptInputs([Encryptable.bool(choice === 'yes')])
         .execute()
 
       // Explicitly convert to viem tuple format, ensuring signature has 0x prefix
@@ -145,24 +145,21 @@ export default function App() {
           ? `0x${enc.signature}`
           : enc.signature) as `0x${string}`,
       })
-      const encAmountStruct = toStruct(encAmount)
       const encChoiceStruct = toStruct(encChoice)
 
-      addLog(`enc ctHash: ${encAmountStruct.ctHash.toString().slice(0, 16)}… sig: ${encAmountStruct.signature.slice(0, 10)}…`)
+      addLog(`enc ctHash: ${encChoiceStruct.ctHash.toString().slice(0, 16)}… sig: ${encChoiceStruct.signature.slice(0, 10)}…`)
       addLog('Sending placeBet tx...')
 
-      const feeData = await publicClient!.estimateFeesPerGas()
       const hash = await walletClient.writeContract({
         address: CONTRACT_ADDRESS,
         abi: ABI,
         functionName: 'placeBet',
-        args: [BigInt(marketIdParam), encAmountStruct, encChoiceStruct],
+        args: [BigInt(marketIdParam), encChoiceStruct],
         value: amountWei,
         chain: arbitrumSepolia,
         account: walletClient.account!,
         gas: 5_000_000n,
-        maxFeePerGas: feeData.maxFeePerGas ? feeData.maxFeePerGas * 2n : parseGwei('0.1'),
-        maxPriorityFeePerGas: feeData.maxPriorityFeePerGas ?? parseGwei('0.001'),
+        ...(await estimateGasFees(publicClient!)),
       })
 
       addLog(`placeBet tx sent: ${hash}`)
@@ -195,7 +192,6 @@ export default function App() {
       if (winnerPool === 0n) {
         // ── Step W1: revealWinnerPool — FHE sum of winning bets ────────
         addLog(`[W1] revealWinnerPool(marketId=${claimMarketId}) — computing winner pool via FHE...`)
-        const revealFee = await publicClient!.estimateFeesPerGas()
         const revealHash = await walletClient.writeContract({
           address: CONTRACT_ADDRESS,
           abi: ABI,
@@ -204,8 +200,7 @@ export default function App() {
           chain: arbitrumSepolia,
           account: walletClient.account!,
           gas: 5_000_000n,
-          maxFeePerGas: revealFee.maxFeePerGas ? revealFee.maxFeePerGas * 2n : parseGwei('0.1'),
-          maxPriorityFeePerGas: revealFee.maxPriorityFeePerGas ?? parseGwei('0.001'),
+          ...(await estimateGasFees(publicClient!)),
         })
         addLog(`revealWinnerPool tx: ${revealHash}`)
         addLog('Waiting for on-chain confirmation...')
@@ -234,7 +229,6 @@ export default function App() {
 
         // ── Step W3: submitWinnerPool — store plaintext on-chain ───────
         addLog(`[W3] submitWinnerPool(marketId=${claimMarketId})...`)
-        const submitFee = await publicClient!.estimateFeesPerGas()
         const submitHash = await walletClient.writeContract({
           address: CONTRACT_ADDRESS,
           abi: ABI,
@@ -248,8 +242,7 @@ export default function App() {
           chain: arbitrumSepolia,
           account: walletClient.account!,
           gas: 500_000n,
-          maxFeePerGas: submitFee.maxFeePerGas ? submitFee.maxFeePerGas * 2n : parseGwei('0.1'),
-          maxPriorityFeePerGas: submitFee.maxPriorityFeePerGas ?? parseGwei('0.001'),
+          ...(await estimateGasFees(publicClient!)),
         })
         addLog(`submitWinnerPool tx: ${submitHash}`)
         await publicClient!.waitForTransactionReceipt({ hash: submitHash })
@@ -283,7 +276,6 @@ export default function App() {
       } else {
         // ── Step 1: claimWinnings — FHE on-chain compute ─────────────
         addLog(`[1/3] claimWinnings(betId=${claimBetId}, marketId=${claimMarketId})...`)
-        const claimFee = await publicClient!.estimateFeesPerGas()
         const hash = await walletClient.writeContract({
           address: CONTRACT_ADDRESS,
           abi: ABI,
@@ -292,8 +284,7 @@ export default function App() {
           chain: arbitrumSepolia,
           account: walletClient.account!,
           gas: 5_000_000n,
-          maxFeePerGas: claimFee.maxFeePerGas ? claimFee.maxFeePerGas * 2n : parseGwei('0.1'),
-          maxPriorityFeePerGas: claimFee.maxPriorityFeePerGas ?? parseGwei('0.001'),
+          ...(await estimateGasFees(publicClient!)),
         })
         addLog(`claimWinnings tx: ${hash}`)
         addLog('Waiting for on-chain confirmation...')
@@ -335,7 +326,6 @@ export default function App() {
       // ── Step 3: withdraw — proportional ETH transfer ───────────────
       const step3Label = alreadyClaimed ? '[2/2]' : '[3/3]'
       addLog(`${step3Label} withdraw(betId=${claimBetId}, marketId=${claimMarketId})...`)
-      const withdrawFee = await publicClient!.estimateFeesPerGas()
       const withdrawHash = await walletClient.writeContract({
         address: CONTRACT_ADDRESS,
         abi: ABI,
@@ -350,8 +340,7 @@ export default function App() {
         chain: arbitrumSepolia,
         account: walletClient.account!,
         gas: 500_000n,
-        maxFeePerGas: withdrawFee.maxFeePerGas ? withdrawFee.maxFeePerGas * 2n : parseGwei('0.1'),
-        maxPriorityFeePerGas: withdrawFee.maxPriorityFeePerGas ?? parseGwei('0.001'),
+        ...(await estimateGasFees(publicClient!)),
       })
       addLog(`withdraw tx: ${withdrawHash}`)
       await publicClient!.waitForTransactionReceipt({ hash: withdrawHash })

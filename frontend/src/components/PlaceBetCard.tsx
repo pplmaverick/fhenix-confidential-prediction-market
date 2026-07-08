@@ -43,9 +43,18 @@ export function PlaceBetCard({
   const { address } = useAccount()
   const { data: balance } = useBalance({ address })
 
-  // fetch betId list for current market via marketBets(marketId, index) — probe 50 slots
-  const MARKET_BET_SLOTS = 50
-  const marketBetContracts = Array.from({ length: MARKET_BET_SLOTS }, (_, i) => ({
+  // fetch betId list for current market via marketBets(marketId, index) — the contract
+  // has no length getter for the array, so we scan in growing windows until a slot
+  // comes back empty (reverts), rather than capping at a fixed slot count.
+  const PROBE_BATCH = 25
+  const [probeWindow, setProbeWindow] = useState(PROBE_BATCH)
+
+  // reset the scan window on market switch so a smaller market doesn't inherit a stale window
+  useEffect(() => {
+    setProbeWindow(PROBE_BATCH)
+  }, [marketId])
+
+  const marketBetContracts = Array.from({ length: probeWindow }, (_, i) => ({
     address: CONTRACT_ADDRESS as `0x${string}`,
     abi: ABI,
     functionName: 'marketBets' as const,
@@ -55,6 +64,16 @@ export function PlaceBetCard({
     contracts: marketBetContracts,
     query: { enabled: isConnected && tab === 'claim' },
   })
+
+  // if every slot in the current window resolved, the array may extend further —
+  // grow the window and probe again until a slot comes back empty
+  useEffect(() => {
+    if (!marketBetResults || marketBetResults.length === 0) return
+    const allSucceeded = marketBetResults.every(r => r.status === 'success')
+    if (allSucceeded) {
+      setProbeWindow(w => w + PROBE_BATCH)
+    }
+  }, [marketBetResults])
 
   // successful results are valid betIds; failures are out-of-bounds slots
   const marketBetIds: bigint[] = marketBetResults

@@ -30,7 +30,7 @@ import { createPublicClient, createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { arbitrumSepolia as viemArbSepolia } from "viem/chains";
 
-const CONTRACT_ADDRESS = "0x79Dc91B97979E8d3cD6A56039EB2C282163b02aB";
+const CONTRACT_ADDRESS = "0x9DE6ba0f6901e366BbCf373F7c8F63b5c955138d";
 
 function step(n: number, title: string) {
   console.log(`\n${"─".repeat(62)}`);
@@ -40,10 +40,6 @@ function step(n: number, title: string) {
 
 function log(label: string, value: string) {
   console.log(`  ${label.padEnd(24)}: ${value}`);
-}
-
-function toInEuint64(enc: any) {
-  return { ctHash: enc.ctHash, securityZone: enc.securityZone, utype: enc.utype, signature: enc.signature };
 }
 
 function toInEbool(enc: any) {
@@ -155,16 +151,14 @@ async function main() {
 
   const STAKE_A = hre.ethers.parseEther("0.01");
   console.log("  Encrypting inputs via CoFHE...");
-  const [encAmtA, encChoA] = await cofheClientA
+  const [encChoA] = await cofheClientA
     .encryptInputs([
-      Encryptable.uint64(STAKE_A),
       Encryptable.bool(true), // YES
     ])
     .execute();
 
   const tx2 = await contractA.placeBet(
     marketId,
-    toInEuint64(encAmtA),
     toInEbool(encChoA),
     { ...(await txOpts()), value: STAKE_A }
   );
@@ -194,16 +188,14 @@ async function main() {
 
   const STAKE_B = hre.ethers.parseEther("0.02");
   console.log("  Encrypting inputs via CoFHE...");
-  const [encAmtB, encChoB] = await cofheClientB
+  const [encChoB] = await cofheClientB
     .encryptInputs([
-      Encryptable.uint64(STAKE_B),
       Encryptable.bool(false), // NO
     ])
     .execute();
 
   const tx3 = await contractB.placeBet(
     marketId,
-    toInEuint64(encAmtB),
     toInEbool(encChoB),
     { ...(await txOpts()), value: STAKE_B }
   );
