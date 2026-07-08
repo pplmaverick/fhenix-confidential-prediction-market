@@ -5,6 +5,10 @@
 ![Solidity](https://img.shields.io/badge/Solidity-0.8.28-purple)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
+**Live Demo →** [fhenix-confidential-prediction-mark.vercel.app](https://fhenix-confidential-prediction-mark.vercel.app) · Network: Arbitrum Sepolia (Chain ID 421614)
+
+---
+
 FHE-encrypted prediction market — bet amounts and choices are sealed on-chain using CoFHE, revealed only at settlement.
 
 **Deployed on Arbitrum Sepolia**
