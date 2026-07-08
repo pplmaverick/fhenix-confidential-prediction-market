@@ -26,10 +26,15 @@ function timestamp() {
 }
 
 export default function App() {
-  const { isConnected } = useAccount()
+  const { isConnected, connector, address } = useAccount()
   const chainId = useChainId()
   const publicClient = usePublicClient()
-  const { data: walletClient } = useWalletClient()
+  const {
+    data: walletClient,
+    status: walletClientStatus,
+    fetchStatus: walletClientFetchStatus,
+    error: walletClientError,
+  } = useWalletClient()
 
   const [cofheReady, setCofheReady] = useState(false)
   const [cofheStatus, setCofheStatus] = useState('')
@@ -41,6 +46,19 @@ export default function App() {
   const addLog = useCallback((msg: string) => {
     setLogs((prev) => [...prev, { time: timestamp(), msg }])
   }, [])
+
+  // Diagnostic: surface exactly why useWalletClient() isn't resolving, since
+  // isConnected can be true while walletClient stays undefined indefinitely
+  // (e.g. connector.getProvider() erroring) with no other visible feedback.
+  useEffect(() => {
+    if (!isConnected) return
+    addLog(
+      `[diag] connector=${connector?.name ?? 'none'} (id=${connector?.id ?? 'none'}) ` +
+      `address=${address ?? 'none'} chainId=${chainId} ` +
+      `walletClient.status=${walletClientStatus} fetchStatus=${walletClientFetchStatus} ` +
+      `error=${walletClientError ? `${walletClientError.name}: ${walletClientError.message}` : 'none'}`
+    )
+  }, [isConnected, connector, address, chainId, walletClientStatus, walletClientFetchStatus, walletClientError])
 
   // Connect CoFHE client when wallet is ready
   useEffect(() => {
