@@ -11,14 +11,31 @@ interface CreateMarketCardProps {
   onMarketCreated?: () => void
 }
 
+// English month labels — rendered as literal <option> text so the browser can
+// never localize the picker (unlike a native <input type="date">, whose
+// displayed format follows the browser's UI language, not the page's lang attr)
+const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+]
+
 export function CreateMarketCard({ addLog, isConnected, onMarketCreated }: CreateMarketCardProps) {
   const { data: walletClient } = useWalletClient()
   const publicClient = usePublicClient()
 
   const [question, setQuestion] = useState('')
   const [options, setOptions] = useState('YES, NO')
-  const [endTime, setEndTime] = useState('')
+  const [endMonth, setEndMonth] = useState('')
+  const [endDay, setEndDay] = useState('')
+  const [endYear, setEndYear] = useState('')
   const [busy, setBusy] = useState(false)
+
+  const endTime = endMonth && endDay && endYear
+    ? `${endYear}-${endMonth}-${endDay}`
+    : ''
+
+  const currentYear = new Date().getFullYear()
+  const yearOptions = Array.from({ length: 6 }, (_, i) => String(currentYear + i))
 
   function buildQuestion() {
     const parts = [question.trim()]
@@ -62,7 +79,9 @@ export function CreateMarketCard({ addLog, isConnected, onMarketCreated }: Creat
 
       setQuestion('')
       setOptions('YES, NO')
-      setEndTime('')
+      setEndMonth('')
+      setEndDay('')
+      setEndYear('')
       onMarketCreated?.()
     } catch (e: any) {
       addLog(`Error: ${e.message ?? String(e)}`)
@@ -121,14 +140,41 @@ export function CreateMarketCard({ addLog, isConnected, onMarketCreated }: Creat
           <label className="font-label-caps text-[11px] text-on-surface-variant block mb-xs uppercase tracking-widest">
             End Time (optional)
           </label>
-          <input
-            className="w-full bg-surface-container-lowest border border-outline-variant rounded-xl py-md px-md text-on-surface font-body-sm text-sm focus:ring-1 focus:ring-primary focus:border-primary focus:outline-none transition-all"
-            type="date"
-            lang="en-US"
-            value={endTime}
-            onChange={(e) => setEndTime(e.target.value)}
-            disabled={busy}
-          />
+          <div className="grid grid-cols-3 gap-sm">
+            <select
+              className="w-full bg-surface-container-lowest border border-outline-variant rounded-xl py-md px-sm text-on-surface font-body-sm text-sm focus:ring-1 focus:ring-primary focus:border-primary focus:outline-none transition-all"
+              value={endMonth}
+              onChange={(e) => setEndMonth(e.target.value)}
+              disabled={busy}
+            >
+              <option value="">Month</option>
+              {MONTHS.map((label, i) => (
+                <option key={label} value={String(i + 1).padStart(2, '0')}>{label}</option>
+              ))}
+            </select>
+            <select
+              className="w-full bg-surface-container-lowest border border-outline-variant rounded-xl py-md px-sm text-on-surface font-body-sm text-sm focus:ring-1 focus:ring-primary focus:border-primary focus:outline-none transition-all"
+              value={endDay}
+              onChange={(e) => setEndDay(e.target.value)}
+              disabled={busy}
+            >
+              <option value="">Day</option>
+              {Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, '0')).map((d) => (
+                <option key={d} value={d}>{d}</option>
+              ))}
+            </select>
+            <select
+              className="w-full bg-surface-container-lowest border border-outline-variant rounded-xl py-md px-sm text-on-surface font-body-sm text-sm focus:ring-1 focus:ring-primary focus:border-primary focus:outline-none transition-all"
+              value={endYear}
+              onChange={(e) => setEndYear(e.target.value)}
+              disabled={busy}
+            >
+              <option value="">Year</option>
+              {yearOptions.map((y) => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+          </div>
         </div>
 
         <button
