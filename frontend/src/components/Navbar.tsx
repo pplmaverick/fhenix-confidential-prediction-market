@@ -39,6 +39,16 @@ export function Navbar({ cofheReady }: NavbarProps) {
     ? `${address.slice(0, 6)}...${address.slice(-4)}`
     : ''
 
+  // OKX Wallet can claim window.ethereum such that no real MetaMask provider
+  // is resolvable even with both extensions installed. Surface this so the
+  // user has a manual workaround (use OKX directly, or disable one extension)
+  // instead of a silently-disappearing MetaMask option.
+  const hasWalletConflict =
+    typeof window !== 'undefined' &&
+    !!(window as any).okxwallet &&
+    !!(window as any).ethereum &&
+    !pickMetaMaskProvider(window)
+
   const [showWallets, setShowWallets] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
@@ -191,6 +201,18 @@ export function Navbar({ cofheReady }: NavbarProps) {
             )}
           </div>
         </div>
+
+        {/* Wallet conflict: OKX Wallet is claiming window.ethereum so no distinct
+            MetaMask provider can be found even though both are installed */}
+        {!isConnected && hasWalletConflict && (
+          <div className="px-gutter pb-sm">
+            <p className="text-amber-400 text-xs font-label-caps bg-amber-400/10 border border-amber-400/30 rounded px-md py-xs">
+              MetaMask and OKX Wallet conflict detected — OKX is claiming the browser's shared wallet slot,
+              so a real MetaMask provider can't be found. Use the "OKX Wallet" option instead, or disable
+              the OKX Wallet extension and refresh to use MetaMask.
+            </p>
+          </div>
+        )}
 
         {/* Connection error */}
         {connectError && (
