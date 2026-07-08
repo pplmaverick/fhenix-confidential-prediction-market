@@ -464,6 +464,8 @@ export default function App() {
               busy={busy}
               isConnected={isConnected}
               wrongChain={wrongChain}
+              isResolved={(marketData as any)?.[3] ?? false}
+              marketOutcome={(marketData as any)?.[4] ?? false}
             />
           </div>
         </div>

@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useAccount, useBalance, useReadContracts } from 'wagmi'
 import { formatEther } from 'viem'
+import { FheTypes } from '@cofhe/sdk'
+import { cofheClient } from '../cofheClient'
 import { CONTRACT_ADDRESS, ABI } from '../contract'
 
 interface PlaceBetCardProps {
@@ -19,6 +21,8 @@ interface PlaceBetCardProps {
   busy: boolean
   isConnected: boolean
   wrongChain: boolean
+  isResolved: boolean
+  marketOutcome: boolean
 }
 
 export function PlaceBetCard({
@@ -30,6 +34,8 @@ export function PlaceBetCard({
   busy,
   isConnected,
   wrongChain,
+  isResolved,
+  marketOutcome,
 }: PlaceBetCardProps) {
   const [betAmount, setBetAmount] = useState('0.001')
   const [choice, setChoice] = useState<'yes' | 'no'>('yes')
@@ -81,6 +87,83 @@ export function PlaceBetCard({
         .filter(r => r.status === 'success')
         .map(r => r.result as bigint)
     : []
+
+  // ── Claim tab: fetch each bet's on-chain details, then keep only bets
+  // belonging to the connected wallet. claimWinnings()/withdraw() already
+  // reject any betId whose bettor != msg.sender on-chain, and encChoice can
+  // only be decrypted by the original bettor's own CoFHE permit — so bets
+  // placed by other addresses can neither be claimed nor have their choice
+  // shown here regardless.
+  const betDetailContracts = marketBetIds.map((betId) => ({
+    address: CONTRACT_ADDRESS as `0x${string}`,
+    abi: ABI,
+    functionName: 'bets' as const,
+    args: [betId] as const,
+  }))
+  const { data: betDetailResults } = useReadContracts({
+    contracts: betDetailContracts,
+    query: { enabled: isConnected && tab === 'claim' && marketBetIds.length > 0 },
+  })
+  const betDetailsLoading = tab === 'claim' && marketBetIds.length > 0 && !betDetailResults
+
+  const myBets = marketBetIds
+    .map((betId, i) => {
+      const result = betDetailResults?.[i]
+      if (!result || result.status !== 'success') return null
+      const [, encChoice, , bettor] = result.result as readonly [
+        `0x${string}`, `0x${string}`, bigint, `0x${string}`, boolean
+      ]
+      return { betId, encChoiceCtHash: encChoice, bettor }
+    })
+    .filter(
+      (b): b is NonNullable<typeof b> =>
+        b !== null && !!address && b.bettor.toLowerCase() === address.toLowerCase()
+    )
+
+  const betWithdrawnContracts = myBets.map((b) => ({
+    address: CONTRACT_ADDRESS as `0x${string}`,
+    abi: ABI,
+    functionName: 'betWithdrawn' as const,
+    args: [b.betId] as const,
+  }))
+  const { data: betWithdrawnResults } = useReadContracts({
+    contracts: betWithdrawnContracts,
+    query: { enabled: isConnected && tab === 'claim' && myBets.length > 0 },
+  })
+
+  // ── Decrypt each of my bets' encrypted choice, using my own CoFHE permit ──
+  const [decryptedChoices, setDecryptedChoices] = useState<Record<string, boolean>>({})
+  const [decryptingIds, setDecryptingIds] = useState<Set<string>>(new Set())
+  const myBetIdsKey = myBets.map((b) => b.betId.toString()).join(',')
+
+  useEffect(() => {
+    if (!cofheReady || tab !== 'claim' || !myBetIdsKey) return
+    for (const bet of myBets) {
+      const key = bet.betId.toString()
+      if (decryptedChoices[key] !== undefined || decryptingIds.has(key)) continue
+      setDecryptingIds((prev) => new Set(prev).add(key))
+      cofheClient
+        .decryptForView(BigInt(bet.encChoiceCtHash), FheTypes.Bool)
+        .withPermit()
+        .execute()
+        .then((choice) => {
+          setDecryptedChoices((prev) => ({ ...prev, [key]: choice as boolean }))
+        })
+        .catch(() => {
+          // permit not ready yet or decrypt failed — leave undecrypted, UI shows a lock icon
+        })
+        .finally(() => {
+          setDecryptingIds((prev) => {
+            const next = new Set(prev)
+            next.delete(key)
+            return next
+          })
+        })
+    }
+    // re-run only when the set of my bet IDs, readiness, or tab changes —
+    // `myBets`/`decryptedChoices`/`decryptingIds` are re-derived every render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cofheReady, tab, myBetIdsKey])
 
   const balanceEth = balance ? parseFloat(formatEther(balance.value)) : null
   const GAS_RESERVE = 0.001 // reserve for gas
@@ -328,39 +411,88 @@ export function PlaceBetCard({
         /* Claim Winnings Tab */
         <div className="space-y-md">
           <p className="font-body-sm text-body-sm text-on-surface-variant">
-            After market settlement, your unclaimed bets in <span className="text-primary font-bold">Market #{marketId}</span> will be listed automatically.
+            Your bets in <span className="text-primary font-bold">Market #{marketId}</span> are listed below, decrypted with your own wallet permit.
           </p>
 
           {!isConnected ? (
             <p className="text-on-surface-variant text-sm text-center py-lg">Please connect your wallet first</p>
-          ) : betsLoading ? (
+          ) : betsLoading || betDetailsLoading ? (
             <div className="text-center py-lg">
               <span className="material-symbols-outlined text-on-surface-variant/50 animate-spin block mb-sm" style={{ fontSize: 32 }}>progress_activity</span>
               <p className="text-on-surface-variant font-body-sm text-body-sm">Loading bets...</p>
             </div>
-          ) : marketBetIds.length === 0 ? (
+          ) : myBets.length === 0 ? (
             <div className="text-center py-lg border border-outline-variant/30 rounded-xl">
               <span className="material-symbols-outlined text-on-surface-variant/30 block mb-sm" style={{ fontSize: 40 }}>redeem</span>
-              <p className="text-on-surface-variant font-body-sm text-body-sm">No bets in this market</p>
+              <p className="text-on-surface-variant font-body-sm text-body-sm">You have no bets in this market</p>
             </div>
           ) : (
             <div className="space-y-sm">
-              {marketBetIds.map((betId) => (
-                <div key={betId.toString()} className="flex items-center justify-between px-md py-sm rounded-xl border border-outline-variant bg-surface-container/30">
-                  <div className="space-y-[2px]">
-                    <p className="font-code-md text-code-md text-on-surface">Bet #{betId.toString()}</p>
-                    <p className="font-code-md text-[11px] text-on-surface-variant">Market #{marketId}</p>
+              {myBets.map((bet, betIndex) => {
+                const key = bet.betId.toString()
+                const choice = decryptedChoices[key]
+                const isDecrypting = decryptingIds.has(key)
+                const withdrawnResult = betWithdrawnResults?.[betIndex]
+                const withdrawn =
+                  withdrawnResult?.status === 'success' ? (withdrawnResult.result as boolean) : false
+                const isLoser = isResolved && choice !== undefined && choice !== marketOutcome
+                const isDisabled = withdrawn || isLoser || !canClaim
+
+                const label = withdrawn
+                  ? 'Already claimed'
+                  : isLoser
+                    ? 'You lost'
+                    : busy
+                      ? 'Processing...'
+                      : !cofheReady
+                        ? 'FHE Init...'
+                        : 'Claim & Withdraw'
+
+                return (
+                  <div key={key} className="flex items-center justify-between px-md py-sm rounded-xl border border-outline-variant bg-surface-container/30">
+                    <div className="space-y-[2px]">
+                      <div className="flex items-center gap-xs">
+                        <p className="font-code-md text-code-md text-on-surface">Bet #{key}</p>
+                        {choice !== undefined ? (
+                          <span
+                            className={`px-xs py-[1px] rounded text-[10px] font-bold font-label-caps ${
+                              choice
+                                ? 'bg-tertiary-container/30 text-tertiary'
+                                : 'bg-secondary-container/30 text-secondary'
+                            }`}
+                          >
+                            {choice ? 'YES' : 'NO'}
+                          </span>
+                        ) : isDecrypting ? (
+                          <span className="text-[10px] text-on-surface-variant animate-pulse">decrypting…</span>
+                        ) : (
+                          <span
+                            className="material-symbols-outlined text-on-surface-variant/50"
+                            style={{ fontSize: 12 }}
+                          >
+                            lock
+                          </span>
+                        )}
+                      </div>
+                      <p className="font-code-md text-[11px] text-on-surface-variant">Market #{marketId}</p>
+                    </div>
+                    <button
+                      className={`px-md py-xs rounded-xl font-bold text-xs flex items-center gap-xs transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed ${
+                        withdrawn || isLoser
+                          ? 'bg-surface-container-high text-on-surface-variant/50'
+                          : 'bg-tertiary-container text-on-tertiary-container hover:opacity-90'
+                      }`}
+                      onClick={() => handleClaimWinnings(key, marketId)}
+                      disabled={isDisabled}
+                    >
+                      <span className="material-symbols-outlined" style={{ fontSize: 16 }}>
+                        {withdrawn ? 'check_circle' : isLoser ? 'close' : 'redeem'}
+                      </span>
+                      {label}
+                    </button>
                   </div>
-                  <button
-                    className="bg-tertiary-container text-on-tertiary-container px-md py-xs rounded-xl font-bold text-xs flex items-center gap-xs transition-all active:scale-95 hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
-                    onClick={() => handleClaimWinnings(betId.toString(), marketId)}
-                    disabled={!canClaim}
-                  >
-                    <span className="material-symbols-outlined" style={{ fontSize: 16 }}>redeem</span>
-                    {busy ? 'Processing...' : !cofheReady ? 'FHE Init...' : 'Claim & Withdraw'}
-                  </button>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>

@@ -121,6 +121,19 @@ export const ABI = [
     type: 'function',
   },
   {
+    inputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    name: 'bets',
+    outputs: [
+      { internalType: 'euint64', name: 'encAmount', type: 'bytes32' },
+      { internalType: 'ebool', name: 'encChoice', type: 'bytes32' },
+      { internalType: 'uint256', name: 'plainAmount', type: 'uint256' },
+      { internalType: 'address', name: 'bettor', type: 'address' },
+      { internalType: 'bool', name: 'claimed', type: 'bool' },
+    ],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
     inputs: [],
     name: 'nextMarketId',
     outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
