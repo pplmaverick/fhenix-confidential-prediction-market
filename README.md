@@ -13,8 +13,8 @@ FHE-encrypted prediction market — bet amounts and choices are sealed on-chain 
 |---|---|
 | Network | Arbitrum Sepolia |
 | Chain ID | 421614 |
-| Contract | `0x79Dc91B97979E8d3cD6A56039EB2C282163b02aB` |
-| Explorer | [View Contract](https://sepolia.arbiscan.io/address/0x79Dc91B97979E8d3cD6A56039EB2C282163b02aB) |
+| Contract | `0x9DE6ba0f6901e366BbCf373F7c8F63b5c955138d` (M3.1) |
+| Explorer | [View Contract](https://sepolia.arbiscan.io/address/0x9DE6ba0f6901e366BbCf373F7c8F63b5c955138d) |
 
 ---
 
@@ -91,7 +91,8 @@ Decryption is performed off-chain by the Fhenix threshold network, returning `(p
 
 | Contract | Address |
 |---|---|
-| `ConfidentialPredictionMarket` | `0x79Dc91B97979E8d3cD6A56039EB2C282163b02aB` |
+| `ConfidentialPredictionMarket` (M3.1) | `0x9DE6ba0f6901e366BbCf373F7c8F63b5c955138d` |
+| `ConfidentialPredictionMarket` (deprecated, M3) | `0x79Dc91B97979E8d3cD6A56039EB2C282163b02aB` |
 | MarketFactory | 0x575FF2bb9f8F5Ef5Bd0198F316Cd7a1a7e8482FA |
 
 ---
@@ -263,6 +264,7 @@ The FHE library's `publishDecryptResult()` expects `uint256` as its first argume
 - MarketFactory contract enabling permissionless market creation
 - Proportional payout logic: winners share pool based on bet size
 - Verified e2e: +0.019971 ETH delta confirmed
+- M3.1 Security Patch: bind encAmount to msg.value, add withdraw double-claim protection (betId-keyed mapping), handle winnerPool=0 with settleNoWinners()+withdrawRefund()
 
 **⬜ M4 — Oracle Integration**
 - Chainlink price feed replaces manual `submitResult`
