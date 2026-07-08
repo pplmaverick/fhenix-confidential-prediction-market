@@ -466,6 +466,7 @@ export default function App() {
               wrongChain={wrongChain}
               isResolved={(marketData as any)?.[3] ?? false}
               marketOutcome={(marketData as any)?.[4] ?? false}
+              addLog={addLog}
             />
           </div>
         </div>

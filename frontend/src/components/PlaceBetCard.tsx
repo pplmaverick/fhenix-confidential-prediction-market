@@ -23,6 +23,7 @@ interface PlaceBetCardProps {
   wrongChain: boolean
   isResolved: boolean
   marketOutcome: boolean
+  addLog: (msg: string) => void
 }
 
 export function PlaceBetCard({
@@ -36,6 +37,7 @@ export function PlaceBetCard({
   wrongChain,
   isResolved,
   marketOutcome,
+  addLog,
 }: PlaceBetCardProps) {
   const [betAmount, setBetAmount] = useState('0.001')
   const [choice, setChoice] = useState<'yes' | 'no'>('yes')
@@ -149,8 +151,10 @@ export function PlaceBetCard({
         .then((choice) => {
           setDecryptedChoices((prev) => ({ ...prev, [key]: choice as boolean }))
         })
-        .catch(() => {
-          // permit not ready yet or decrypt failed — leave undecrypted, UI shows a lock icon
+        .catch((e: any) => {
+          // leave undecrypted — UI shows a lock icon — but surface why, since a
+          // silently-failed decrypt was indistinguishable from "not decrypted yet"
+          addLog(`⚠️ decryptForView failed for bet #${key}: ${e?.message ?? String(e)}`)
         })
         .finally(() => {
           setDecryptingIds((prev) => {
