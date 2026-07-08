@@ -45,7 +45,14 @@ export function CreateMarketCard({ addLog, isConnected, onMarketCreated }: Creat
   }
 
   async function handleCreate() {
-    if (!walletClient || !publicClient || !question.trim()) return
+    if (!question.trim()) return
+    if (!walletClient || !publicClient) {
+      addLog(
+        `⚠️ Wallet client not ready (walletClient=${!!walletClient}, publicClient=${!!publicClient}). ` +
+        `If your wallet shows as connected, try Disconnect then reconnect — this can happen when multiple wallet extensions are installed.`
+      )
+      return
+    }
     setBusy(true)
     const fullQuestion = buildQuestion()
     try {
