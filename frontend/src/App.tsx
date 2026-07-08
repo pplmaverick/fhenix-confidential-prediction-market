@@ -90,6 +90,18 @@ export default function App() {
         if (!cancelled) {
           try {
             setCofheStatus('signing')
+
+            // getOrCreateSelfPermit() reuses any existing active permit
+            // regardless of expiry — it only checks that one exists, not that
+            // it's still valid. Evict a stale one first so a fresh permit gets
+            // signed instead of every decryptForView() call failing with
+            // "Permit is expired" forever.
+            const existingPermit = cofheClient.permits.getActivePermit(chainId, walletClient.account!.address)
+            if (existingPermit && existingPermit.expiration < Math.floor(Date.now() / 1000)) {
+              addLog('Existing FHE permit expired — requesting a fresh one...')
+              await cofheClient.permits.removePermit(existingPermit.hash, chainId, walletClient.account!.address)
+            }
+
             await cofheClient.permits.getOrCreateSelfPermit()
             if (!cancelled) {
               setCofheStatus('ready')
@@ -112,7 +124,7 @@ export default function App() {
     return () => {
       cancelled = true
     }
-  }, [isConnected, publicClient, walletClient, addLog])
+  }, [isConnected, publicClient, walletClient, chainId, addLog])
 
   const { data: marketData, refetch: refetchMarket } = useReadContract({
     address: CONTRACT_ADDRESS,
