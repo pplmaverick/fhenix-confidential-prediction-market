@@ -60,6 +60,12 @@ contract ConfidentialPredictionMarket {
     mapping(uint256 => euint64)  public encWinnerPools; // marketId → encrypted winner pool
     mapping(uint256 => uint256)  public winnerPools;    // marketId → plaintext winner pool (wei)
 
+    // Per-bet withdrawal tracking, prevents double-claim/replay of withdraw() or withdrawRefund()
+    mapping(uint256 => bool) public betWithdrawn; // betId → already withdrawn
+
+    // Markets confirmed (via CoFHE decrypt proof) to have zero winners; eligible for refund
+    mapping(uint256 => bool) public noWinnersMarket; // marketId → true
+
     // ─── Events ─────────────────────────────────────────────────────────────────
 
     event MarketCreated(uint256 indexed marketId, string question, address owner);
@@ -69,6 +75,8 @@ contract ConfidentialPredictionMarket {
     event WinnerPoolRevealed(uint256 indexed marketId, bytes32 encWinnerPoolCtHash);
     event WinnerPoolSet(uint256 indexed marketId, uint256 plainWinnerPool);
     event WinningsClaimed(uint256 indexed betId, address indexed bettor, bytes32 encPayoutCtHash);
+    event NoWinnersSettled(uint256 indexed marketId);
+    event RefundWithdrawn(uint256 indexed betId, address indexed bettor, uint256 amount);
 
     // ─── Actions ────────────────────────────────────────────────────────────────
 
@@ -99,22 +107,22 @@ contract ConfidentialPredictionMarket {
     }
 
     /**
-     * @notice Place a bet with encrypted choice and encrypted amount.
+     * @notice Place a bet with an encrypted choice; the encrypted stake amount is
+     *         derived directly from msg.value so it can never diverge from the ETH sent.
      * @param marketId  Target market.
-     * @param encAmount FHE-encrypted bet amount (must match msg.value semantically).
      * @param encChoice FHE-encrypted choice: encrypt(true) = Yes, encrypt(false) = No.
      */
     function placeBet(
         uint256 marketId,
-        InEuint64 calldata encAmount,
-        InEbool   calldata encChoice
+        InEbool calldata encChoice
     ) external payable returns (uint256 betId) {
         Market storage market = markets[marketId];
         require(!market.locked, "Market is locked");
         require(msg.value > 0, "Must send ETH as stake");
+        require(msg.value <= type(uint64).max, "Stake exceeds euint64 range");
 
-        // Convert encrypted inputs to FHE ciphertexts
-        euint64 amount = FHE.asEuint64(encAmount);
+        // Encrypt msg.value directly — the bet amount can never diverge from the ETH paid
+        euint64 amount = FHE.asEuint64(msg.value);
         ebool   choice = FHE.asEbool(encChoice);
 
         // ACL: grant this contract future access to the ciphertexts
@@ -195,9 +203,55 @@ contract ConfidentialPredictionMarket {
         bytes calldata signature
     ) external {
         require(winnerPools[marketId] == 0, "Winner pool already set");
+        require(!noWinnersMarket[marketId], "Market already settled as no-winners");
+        require(plainWinnerPool > 0, "No winners - call settleNoWinners instead");
         FHE.publishDecryptResult(ctHash, plainWinnerPool, signature);
         winnerPools[marketId] = plainWinnerPool;
         emit WinnerPoolSet(marketId, plainWinnerPool);
+    }
+
+    /**
+     * @notice Settle a market where the decrypted winner pool is zero (nobody picked the
+     *         winning side). Verifies the zero result via the CoFHE decrypt proof, then
+     *         marks the market as refund-eligible so bettors can reclaim their stakes
+     *         via withdrawRefund(). Call with (ctHash, signature) obtained from
+     *         decryptForTx() on the revealWinnerPool() result.
+     */
+    function settleNoWinners(
+        uint256 marketId,
+        uint256 ctHash,
+        bytes calldata signature
+    ) external {
+        Market storage market = markets[marketId];
+        require(market.locked, "Market not locked");
+        require(market.resolved, "Market not resolved");
+        require(winnerPools[marketId] == 0, "Winner pool already set");
+        require(!noWinnersMarket[marketId], "Already settled as no-winners");
+
+        // Verify the CoFHE decryption proves the winner pool is exactly zero
+        FHE.publishDecryptResult(ctHash, 0, signature);
+
+        noWinnersMarket[marketId] = true;
+        emit NoWinnersSettled(marketId);
+    }
+
+    /**
+     * @notice Reclaim the original stake for a bet in a market settled as no-winners.
+     * @param betId    The bet to refund.
+     * @param marketId The market the bet belongs to.
+     */
+    function withdrawRefund(uint256 betId, uint256 marketId) external {
+        require(bets[betId].bettor == msg.sender, "Not your bet");
+        require(noWinnersMarket[marketId], "Market not settled as no-winners");
+        require(!betWithdrawn[betId], "Already withdrawn");
+
+        uint256 amount = bets[betId].plainAmount;
+        require(amount > 0, "Nothing to refund");
+
+        betWithdrawn[betId] = true; // checks-effects-interactions
+        payable(msg.sender).transfer(amount);
+
+        emit RefundWithdrawn(betId, msg.sender, amount);
     }
 
     /**
@@ -264,9 +318,13 @@ contract ConfidentialPredictionMarket {
         bytes calldata signature
     ) external {
         require(bets[betId].bettor == msg.sender, "Not your bet");
+        require(!betWithdrawn[betId], "Already withdrawn");
 
         // Verify the CoFHE decryption result on-chain
         FHE.publishDecryptResult(ctHash, plainBetAmount, signature);
+
+        // Checks-effects-interactions: mark withdrawn before any transfer
+        betWithdrawn[betId] = true;
 
         if (plainBetAmount > 0) {
             Market storage market = markets[marketId];
