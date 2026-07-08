@@ -23,7 +23,7 @@ export function CreateMarketCard({ addLog, isConnected, onMarketCreated }: Creat
   function buildQuestion() {
     const parts = [question.trim()]
     if (options.trim() && options.trim() !== 'YES, NO') parts.push(`Options: ${options.trim()}`)
-    if (endTime.trim()) parts.push(`Ends: ${endTime.trim()}`)
+    if (endTime.trim()) parts.push(`Ends: ${endTime.trim()}T23:59`)
     return parts.join(' | ')
   }
 
@@ -123,8 +123,7 @@ export function CreateMarketCard({ addLog, isConnected, onMarketCreated }: Creat
           </label>
           <input
             className="w-full bg-surface-container-lowest border border-outline-variant rounded-xl py-md px-md text-on-surface font-body-sm text-sm focus:ring-1 focus:ring-primary focus:border-primary focus:outline-none transition-all"
-            type="text"
-            placeholder="2026-12-31T23:59"
+            type="date"
             value={endTime}
             onChange={(e) => setEndTime(e.target.value)}
             disabled={busy}
