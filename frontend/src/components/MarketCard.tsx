@@ -1,5 +1,6 @@
 import { formatEther } from 'viem'
 import { CONTRACT_ADDRESS } from '../contract'
+import { OwnerPanel } from './OwnerPanel'
 
 interface MarketCardProps {
   marketId: string
@@ -10,6 +11,7 @@ interface MarketCardProps {
   nextMarketId: bigint | undefined
   nextBetId: bigint | undefined
   refetchMarket: () => void
+  addLog: (msg: string) => void
 }
 
 export function MarketCard({
@@ -19,8 +21,10 @@ export function MarketCard({
   nextMarketId,
   nextBetId,
   refetchMarket,
+  addLog,
 }: MarketCardProps) {
   const question = marketData?.[0] ?? ''
+  const owner = marketData?.[1]
   const isLocked = marketData?.[2] ?? false
   const isResolved = marketData?.[3] ?? false
   const outcome = marketData?.[4] ?? false
@@ -153,6 +157,15 @@ export function MarketCard({
             {' · '}Arbitrum Sepolia
           </p>
         </div>
+
+        {/* Owner-only controls — renders nothing unless connected address === market owner */}
+        <OwnerPanel
+          marketId={marketId}
+          owner={owner}
+          marketStatus={status}
+          addLog={addLog}
+          refetchMarket={refetchMarket}
+        />
       </div>
 
       {/* Tags */}

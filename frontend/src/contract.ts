@@ -104,6 +104,23 @@ export const ABI = [
     type: 'function',
   },
   {
+    inputs: [{ internalType: 'uint256', name: 'marketId', type: 'uint256' }],
+    name: 'lockMarket',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
+    inputs: [
+      { internalType: 'uint256', name: 'marketId', type: 'uint256' },
+      { internalType: 'bool', name: 'outcome', type: 'bool' },
+    ],
+    name: 'submitResult',
+    outputs: [],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
+  {
     inputs: [],
     name: 'nextMarketId',
     outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],

@@ -449,6 +449,7 @@ export default function App() {
               nextMarketId={nextMarketId as bigint | undefined}
               nextBetId={nextBetId as bigint | undefined}
               refetchMarket={refetchMarket}
+              addLog={addLog}
             />
           </div>
 
