@@ -2,22 +2,28 @@ import { useState, useRef, useEffect } from 'react'
 import { useAccount, useConnect, useDisconnect, useSwitchChain, useChainId } from 'wagmi'
 import { injected } from 'wagmi/connectors'
 import { CHAIN_ID } from '../contract'
+import { pickMetaMaskProvider, pickOkxProvider } from '../walletProviders'
 
 interface NavbarProps {
   cofheReady: boolean
 }
 
 // Connectors are created inline in onClick (arc/tempo pattern)
-const metaMaskConnector = () => injected()
+const metaMaskConnector = () =>
+  injected({
+    target: {
+      id: 'metamask',
+      name: 'MetaMask',
+      provider: pickMetaMaskProvider,
+    },
+  })
 
 const okxConnector = () =>
   injected({
     target: {
       id: 'okxwallet',
       name: 'OKX Wallet',
-      provider(window) {
-        return (window as any)?.okxwallet
-      },
+      provider: pickOkxProvider,
     },
   })
 
@@ -54,12 +60,15 @@ export function Navbar({ cofheReady }: NavbarProps) {
     {
       label: 'MetaMask',
       connector: metaMaskConnector,
-      available: typeof window !== 'undefined' && !!(window as any).ethereum,
+      // Explicitly resolve the real MetaMask provider — if OKX is installed and
+      // impersonating window.ethereum, this option won't show up at all rather
+      // than silently connecting to the wrong wallet (see walletProviders.ts).
+      available: typeof window !== 'undefined' && !!pickMetaMaskProvider(window),
     },
     {
       label: 'OKX Wallet',
       connector: okxConnector,
-      available: typeof window !== 'undefined' && !!(window as any).okxwallet,
+      available: typeof window !== 'undefined' && !!pickOkxProvider(window),
     },
   ].filter((w) => w.available)
 
