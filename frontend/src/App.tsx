@@ -12,13 +12,15 @@ import { Encryptable } from '@cofhe/sdk'
 import { cofheClient } from './cofheClient'
 import { estimateGasFees } from './gas'
 import { CONTRACT_ADDRESS, ABI, CHAIN_ID } from './contract'
-import { Navbar } from './components/Navbar'
+import { Navbar, type Tab } from './components/Navbar'
 import { WrongNetworkBanner } from './components/WrongNetworkBanner'
 import { MarketCard } from './components/MarketCard'
 import { MarketSelector } from './components/MarketSelector'
 import { PlaceBetCard } from './components/PlaceBetCard'
 import { ActivityLog } from './components/ActivityLog'
 import { CreateMarketCard } from './components/CreateMarketCard'
+import { MyBets } from './components/MyBets'
+import { Portfolio } from './components/Portfolio'
 
 type LogEntry = { time: string; msg: string }
 
@@ -43,6 +45,7 @@ export default function App() {
   const [logs, setLogs] = useState<LogEntry[]>([])
   const [busy, setBusy] = useState(false)
   const [showCreateForm, setShowCreateForm] = useState(false)
+  const [activeTab, setActiveTab] = useState<Tab>('markets')
 
   const addLog = useCallback((msg: string) => {
     setLogs((prev) => [...prev, { time: timestamp(), msg }])
@@ -374,104 +377,126 @@ export default function App() {
 
   return (
     <div className="dark min-h-screen flex flex-col bg-background text-on-surface">
-      <Navbar cofheReady={cofheReady} />
+      <Navbar cofheReady={cofheReady} activeTab={activeTab} onTabChange={setActiveTab} />
       <WrongNetworkBanner />
 
       <main className="flex-grow w-full max-w-container-max mx-auto px-gutter py-xl">
 
-        {/* Market Selector — always visible, no wallet required */}
-        <div className="mb-xl">
-          <div className="flex items-center justify-between mb-md">
-            <h3 className="font-headline-lg-mobile text-headline-lg-mobile font-bold text-on-surface">
-              All Markets
-            </h3>
-            <div className="flex items-center gap-md">
-              <span className="font-code-md text-[11px] text-on-surface-variant">
-                {nextMarketId?.toString() ?? '0'} markets
-              </span>
-              <button
-                onClick={() => setShowCreateForm((v) => !v)}
-                className={`flex items-center gap-xs px-md py-xs rounded-lg text-[12px] font-bold border transition-all duration-200 ${
-                  showCreateForm
-                    ? 'border-outline-variant text-on-surface-variant hover:border-primary/50 hover:text-on-surface'
-                    : 'border-primary text-primary hover:bg-primary/10'
+        {activeTab === 'markets' && (
+          <>
+            {/* Market Selector — always visible, no wallet required */}
+            <div className="mb-xl">
+              <div className="flex items-center justify-between mb-md">
+                <h3 className="font-headline-lg-mobile text-headline-lg-mobile font-bold text-on-surface">
+                  All Markets
+                </h3>
+                <div className="flex items-center gap-md">
+                  <span className="font-code-md text-[11px] text-on-surface-variant">
+                    {nextMarketId?.toString() ?? '0'} markets
+                  </span>
+                  <button
+                    onClick={() => setShowCreateForm((v) => !v)}
+                    className={`flex items-center gap-xs px-md py-xs rounded-lg text-[12px] font-bold border transition-all duration-200 ${
+                      showCreateForm
+                        ? 'border-outline-variant text-on-surface-variant hover:border-primary/50 hover:text-on-surface'
+                        : 'border-primary text-primary hover:bg-primary/10'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined" style={{ fontSize: 15 }}>
+                      {showCreateForm ? 'close' : 'add'}
+                    </span>
+                    {showCreateForm ? 'Cancel' : 'Create Market'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Collapsible Create Market form */}
+              <div
+                className={`overflow-hidden transition-all duration-300 ease-in-out ${
+                  showCreateForm ? 'max-h-[520px] opacity-100 mb-md' : 'max-h-0 opacity-0'
                 }`}
               >
-                <span className="material-symbols-outlined" style={{ fontSize: 15 }}>
-                  {showCreateForm ? 'close' : 'add'}
-                </span>
-                {showCreateForm ? 'Cancel' : 'Create Market'}
-              </button>
+                <CreateMarketCard
+                  addLog={addLog}
+                  isConnected={isConnected}
+                  onMarketCreated={() => {
+                    refetchNextMarketId()
+                    setShowCreateForm(false)
+                  }}
+                />
+              </div>
+
+              <div className="confidential-card rounded-xl p-md">
+                <MarketSelector
+                  marketCount={Number(nextMarketId ?? 0n)}
+                  selectedId={marketId}
+                  onSelect={(id) => { setMarketId(id); refetchMarket() }}
+                />
+              </div>
             </div>
-          </div>
 
-          {/* Collapsible Create Market form */}
-          <div
-            className={`overflow-hidden transition-all duration-300 ease-in-out ${
-              showCreateForm ? 'max-h-[520px] opacity-100 mb-md' : 'max-h-0 opacity-0'
-            }`}
-          >
-            <CreateMarketCard
-              addLog={addLog}
-              isConnected={isConnected}
-              onMarketCreated={() => {
-                refetchNextMarketId()
-                setShowCreateForm(false)
-              }}
-            />
-          </div>
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-lg items-start">
+              {/* Left: Market Info */}
+              <div className="lg:col-span-7">
+                <MarketCard
+                  marketId={marketId}
+                  setMarketId={setMarketId}
+                  marketData={
+                    marketData as
+                      | readonly [
+                          string,
+                          `0x${string}`,
+                          boolean,
+                          boolean,
+                          boolean,
+                          bigint,
+                        ]
+                      | undefined
+                  }
+                  nextMarketId={nextMarketId as bigint | undefined}
+                  nextBetId={nextBetId as bigint | undefined}
+                  refetchMarket={refetchMarket}
+                  addLog={addLog}
+                />
+              </div>
 
-          <div className="confidential-card rounded-xl p-md">
-            <MarketSelector
-              marketCount={Number(nextMarketId ?? 0n)}
-              selectedId={marketId}
-              onSelect={(id) => { setMarketId(id); refetchMarket() }}
-            />
-          </div>
-        </div>
+              {/* Right: Place Bet */}
+              <div className="lg:col-span-5 flex flex-col gap-lg">
+                <PlaceBetCard
+                  marketId={marketId}
+                  handlePlaceBet={handlePlaceBet}
+                  handleClaimWinnings={handleClaimWinnings}
+                  cofheReady={cofheReady}
+                  cofheStatus={cofheStatus}
+                  busy={busy}
+                  isConnected={isConnected}
+                  wrongChain={wrongChain}
+                  isResolved={(marketData as any)?.[3] ?? false}
+                  marketOutcome={(marketData as any)?.[4] ?? false}
+                  addLog={addLog}
+                />
+              </div>
+            </div>
+          </>
+        )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-lg items-start">
-          {/* Left: Market Info */}
-          <div className="lg:col-span-7">
-            <MarketCard
-              marketId={marketId}
-              setMarketId={setMarketId}
-              marketData={
-                marketData as
-                  | readonly [
-                      string,
-                      `0x${string}`,
-                      boolean,
-                      boolean,
-                      boolean,
-                      bigint,
-                    ]
-                  | undefined
-              }
-              nextMarketId={nextMarketId as bigint | undefined}
-              nextBetId={nextBetId as bigint | undefined}
-              refetchMarket={refetchMarket}
-              addLog={addLog}
-            />
+        {activeTab === 'my-bets' && (
+          <div className="mb-xl">
+            <h3 className="font-headline-lg-mobile text-headline-lg-mobile font-bold text-on-surface mb-md">
+              My Bets
+            </h3>
+            <MyBets handleClaimWinnings={handleClaimWinnings} busy={busy} cofheReady={cofheReady} />
           </div>
+        )}
 
-          {/* Right: Place Bet */}
-          <div className="lg:col-span-5 flex flex-col gap-lg">
-            <PlaceBetCard
-              marketId={marketId}
-              handlePlaceBet={handlePlaceBet}
-              handleClaimWinnings={handleClaimWinnings}
-              cofheReady={cofheReady}
-              cofheStatus={cofheStatus}
-              busy={busy}
-              isConnected={isConnected}
-              wrongChain={wrongChain}
-              isResolved={(marketData as any)?.[3] ?? false}
-              marketOutcome={(marketData as any)?.[4] ?? false}
-              addLog={addLog}
-            />
+        {activeTab === 'portfolio' && (
+          <div className="mb-xl">
+            <h3 className="font-headline-lg-mobile text-headline-lg-mobile font-bold text-on-surface mb-md">
+              Portfolio
+            </h3>
+            <Portfolio cofheReady={cofheReady} />
           </div>
-        </div>
+        )}
 
         {/* Activity Log */}
         <div id="activity-log">

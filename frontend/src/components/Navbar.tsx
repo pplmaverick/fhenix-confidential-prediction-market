@@ -3,11 +3,15 @@ import { useAccount, useConnect, useDisconnect, useSwitchChain, useChainId } fro
 import { CHAIN_ID } from '../contract'
 import { pickMetaMaskProvider, pickOkxProvider } from '../walletProviders'
 
+export type Tab = 'markets' | 'my-bets' | 'portfolio'
+
 interface NavbarProps {
   cofheReady: boolean
+  activeTab: Tab
+  onTabChange: (tab: Tab) => void
 }
 
-export function Navbar({ cofheReady }: NavbarProps) {
+export function Navbar({ cofheReady, activeTab, onTabChange }: NavbarProps) {
   const { address, isConnected } = useAccount()
   const { connect, connectors, error: connectError, isPending } = useConnect()
   const { disconnect } = useDisconnect()
@@ -87,21 +91,6 @@ export function Navbar({ cofheReady }: NavbarProps) {
 
           {/* Desktop right */}
           <div className="hidden md:flex items-center gap-lg">
-            <nav className="flex gap-md">
-              <a className="font-label-caps text-label-caps text-primary border-b-2 border-primary pb-1" href="#">
-                Markets
-              </a>
-              <a
-                className="font-label-caps text-label-caps text-on-surface-variant hover:text-primary transition-colors cursor-pointer"
-                onClick={(e) => {
-                  e.preventDefault()
-                  document.getElementById('activity-log')?.scrollIntoView({ behavior: 'smooth' })
-                }}
-              >
-                Activity
-              </a>
-            </nav>
-
             {!isConnected ? (
               <div className="relative" ref={dropdownRef}>
                 <button
@@ -187,6 +176,49 @@ export function Navbar({ cofheReady }: NavbarProps) {
             )}
           </div>
         </div>
+
+        {/* Tab row — visible on all breakpoints so My Bets / Portfolio are reachable on mobile too */}
+        <nav className="flex gap-md px-gutter pb-3 overflow-x-auto">
+          <button
+            className={`font-label-caps text-label-caps pb-1 border-b-2 whitespace-nowrap transition-colors ${
+              activeTab === 'markets'
+                ? 'text-primary border-primary'
+                : 'text-on-surface-variant border-transparent hover:text-primary'
+            }`}
+            onClick={() => onTabChange('markets')}
+          >
+            Markets
+          </button>
+          <button
+            className={`font-label-caps text-label-caps pb-1 border-b-2 whitespace-nowrap transition-colors ${
+              activeTab === 'my-bets'
+                ? 'text-primary border-primary'
+                : 'text-on-surface-variant border-transparent hover:text-primary'
+            }`}
+            onClick={() => onTabChange('my-bets')}
+          >
+            My Bets
+          </button>
+          <button
+            className={`font-label-caps text-label-caps pb-1 border-b-2 whitespace-nowrap transition-colors ${
+              activeTab === 'portfolio'
+                ? 'text-primary border-primary'
+                : 'text-on-surface-variant border-transparent hover:text-primary'
+            }`}
+            onClick={() => onTabChange('portfolio')}
+          >
+            Portfolio
+          </button>
+          <a
+            className="font-label-caps text-label-caps text-on-surface-variant hover:text-primary transition-colors cursor-pointer pb-1 border-b-2 border-transparent whitespace-nowrap"
+            onClick={(e) => {
+              e.preventDefault()
+              document.getElementById('activity-log')?.scrollIntoView({ behavior: 'smooth' })
+            }}
+          >
+            Activity
+          </a>
+        </nav>
 
         {/* Wallet conflict: OKX Wallet is claiming window.ethereum so no distinct
             MetaMask provider can be found even though both are installed */}

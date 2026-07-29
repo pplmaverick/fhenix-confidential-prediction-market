@@ -41,6 +41,16 @@ export const ABI = [
     type: 'function',
   },
   {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: 'uint256', name: 'marketId', type: 'uint256' },
+      { indexed: true, internalType: 'uint256', name: 'betId', type: 'uint256' },
+      { indexed: true, internalType: 'address', name: 'bettor', type: 'address' },
+    ],
+    name: 'BetPlaced',
+    type: 'event',
+  },
+  {
     inputs: [
       { internalType: 'uint256', name: 'betId', type: 'uint256' },
       { internalType: 'uint256', name: 'marketId', type: 'uint256' },
