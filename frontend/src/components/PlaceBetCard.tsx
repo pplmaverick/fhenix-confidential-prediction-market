@@ -11,6 +11,7 @@ interface PlaceBetCardProps {
     marketId: string,
     betAmount: string,
     choice: 'yes' | 'no',
+    onEncrypted?: () => void,
   ) => Promise<void>
   handleClaimWinnings: (
     claimBetId: string,
@@ -42,6 +43,16 @@ export function PlaceBetCard({
   const [betAmount, setBetAmount] = useState('0.001')
   const [choice, setChoice] = useState<'yes' | 'no'>('yes')
   const [tab, setTab] = useState<'bet' | 'claim'>('bet')
+  const [betStage, setBetStage] = useState<'idle' | 'encrypting' | 'confirming'>('idle')
+
+  async function onPlaceBetClick() {
+    setBetStage('encrypting')
+    try {
+      await handlePlaceBet(marketId, betAmount, choice, () => setBetStage('confirming'))
+    } finally {
+      setBetStage('idle')
+    }
+  }
 
   // reset bet amount on market switch to avoid stale values
   useEffect(() => {
@@ -173,18 +184,23 @@ export function PlaceBetCard({
   const GAS_RESERVE = 0.001 // reserve for gas
   const maxBet = balanceEth !== null ? Math.max(0, balanceEth - GAS_RESERVE) : null
 
-  const canBet = isConnected && cofheReady && !wrongChain && !busy
+  const canBet = isConnected && cofheReady && !wrongChain && !busy && betStage === 'idle'
   const canClaim = isConnected && cofheReady && !wrongChain && !busy
 
-  const betBtnLabel = busy
-    ? 'Processing...'
-    : !isConnected
-      ? 'Connect Wallet First'
-      : wrongChain
-        ? 'Switch to Arbitrum Sepolia'
-        : !cofheReady
-          ? 'Initialising FHE...'
-          : 'Encrypt & Place Bet'
+  const betBtnLabel =
+    betStage === 'encrypting'
+      ? 'Encrypting...'
+      : betStage === 'confirming'
+        ? 'Confirming...'
+        : busy
+          ? 'Processing...'
+          : !isConnected
+            ? 'Connect Wallet First'
+            : wrongChain
+              ? 'Switch to Arbitrum Sepolia'
+              : !cofheReady
+                ? 'Initialising FHE...'
+                : 'Place Bet'
 
   return (
     <div className="confidential-card rounded-xl p-lg glow-accent">
@@ -396,10 +412,15 @@ export function PlaceBetCard({
             </div>
           )}
 
+          {/* MetaMask testnet warning hint */}
+          <p className="text-xs text-gray-400 text-center">
+            MetaMask may show a security warning for this testnet contract — this is expected. Click Confirm to proceed.
+          </p>
+
           {/* Submit Button */}
           <button
             className="w-full bg-primary-container text-white py-md rounded-xl font-bold text-sm flex items-center justify-center gap-sm glow-submit transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
-            onClick={() => handlePlaceBet(marketId, betAmount, choice)}
+            onClick={onPlaceBetClick}
             disabled={!canBet}
           >
             <span

@@ -143,6 +143,7 @@ export default function App() {
     marketIdParam: string,
     betAmount: string,
     choice: 'yes' | 'no',
+    onEncrypted?: () => void,
   ) {
     if (!walletClient || !cofheReady) return
     setBusy(true)
@@ -171,6 +172,9 @@ export default function App() {
 
       addLog(`enc ctHash: ${encChoiceStruct.ctHash.toString().slice(0, 16)}… sig: ${encChoiceStruct.signature.slice(0, 10)}…`)
       addLog('Sending placeBet tx...')
+
+      // encryption is done — writeContract() below triggers the MetaMask prompt
+      onEncrypted?.()
 
       const hash = await walletClient.writeContract({
         address: CONTRACT_ADDRESS,
