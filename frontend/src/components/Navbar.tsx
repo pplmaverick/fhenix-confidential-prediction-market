@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
 import { useAccount, useConnect, useDisconnect, useSwitchChain, useChainId } from 'wagmi'
-import { injected } from 'wagmi/connectors'
 import { CHAIN_ID } from '../contract'
 import { pickMetaMaskProvider, pickOkxProvider } from '../walletProviders'
 
@@ -8,31 +7,23 @@ interface NavbarProps {
   cofheReady: boolean
 }
 
-// Connectors are created inline in onClick (arc/tempo pattern)
-const metaMaskConnector = () =>
-  injected({
-    target: {
-      id: 'metamask',
-      name: 'MetaMask',
-      provider: pickMetaMaskProvider,
-    },
-  })
-
-const okxConnector = () =>
-  injected({
-    target: {
-      id: 'okxwallet',
-      name: 'OKX Wallet',
-      provider: pickOkxProvider,
-    },
-  })
-
 export function Navbar({ cofheReady }: NavbarProps) {
   const { address, isConnected } = useAccount()
-  const { connect, error: connectError, isPending } = useConnect()
+  const { connect, connectors, error: connectError, isPending } = useConnect()
   const { disconnect } = useDisconnect()
   const { switchChain } = useSwitchChain()
   const chainId = useChainId()
+
+  // Reuse the singleton connector instances wagmi already created from
+  // wagmiConfig.ts's `connectors` array instead of calling injected({...})
+  // fresh per click. Passing a freshly-created connector *function* into
+  // connect() makes wagmi mint a brand-new uid every time (see
+  // @wagmi/core connect.js), separate from the connector reconnectOnMount
+  // uses on page load — the resulting desync between useChainId() and
+  // useWalletClient()'s cached connection chainId is what was causing
+  // ConnectorChainMismatchError.
+  const metaMaskConnector = connectors.find((c) => c.id === 'metamask')
+  const okxConnector = connectors.find((c) => c.id === 'okxwallet')
 
   const wrongChain = isConnected && chainId !== CHAIN_ID
   const shortAddress = address
@@ -66,21 +57,16 @@ export function Navbar({ cofheReady }: NavbarProps) {
     if (isConnected) setShowWallets(false)
   }, [isConnected])
 
-  const walletOptions = [
-    {
-      label: 'MetaMask',
-      connector: metaMaskConnector,
-      // Explicitly resolve the real MetaMask provider — if OKX is installed and
-      // impersonating window.ethereum, this option won't show up at all rather
-      // than silently connecting to the wrong wallet (see walletProviders.ts).
-      available: typeof window !== 'undefined' && !!pickMetaMaskProvider(window),
-    },
-    {
-      label: 'OKX Wallet',
-      connector: okxConnector,
-      available: typeof window !== 'undefined' && !!pickOkxProvider(window),
-    },
-  ].filter((w) => w.available)
+  const walletOptions: { label: string; connector: (typeof connectors)[number] }[] = []
+  // Explicitly resolve the real MetaMask provider — if OKX is installed and
+  // impersonating window.ethereum, this option won't show up at all rather
+  // than silently connecting to the wrong wallet (see walletProviders.ts).
+  if (metaMaskConnector && typeof window !== 'undefined' && pickMetaMaskProvider(window)) {
+    walletOptions.push({ label: 'MetaMask', connector: metaMaskConnector })
+  }
+  if (okxConnector && typeof window !== 'undefined' && pickOkxProvider(window)) {
+    walletOptions.push({ label: 'OKX Wallet', connector: okxConnector })
+  }
 
   return (
     <header className="bg-surface/90 backdrop-blur-md border-b border-outline-variant sticky top-0 z-50">
@@ -123,7 +109,7 @@ export function Navbar({ cofheReady }: NavbarProps) {
                   disabled={isPending}
                   onClick={() => {
                     if (walletOptions.length === 1) {
-                      connect({ connector: walletOptions[0].connector() })
+                      connect({ connector: walletOptions[0].connector })
                     } else {
                       setShowWallets((v) => !v)
                     }
@@ -147,7 +133,7 @@ export function Navbar({ cofheReady }: NavbarProps) {
                         key={w.label}
                         className="w-full text-left px-md py-sm hover:bg-surface-container-high transition-colors font-label-caps text-sm text-on-surface flex items-center gap-sm disabled:opacity-50"
                         disabled={isPending}
-                        onClick={() => connect({ connector: w.connector() })}
+                        onClick={() => connect({ connector: w.connector })}
                       >
                         <span className="material-symbols-outlined text-primary" style={{ fontSize: 18 }}>
                           account_balance_wallet
@@ -188,7 +174,7 @@ export function Navbar({ cofheReady }: NavbarProps) {
                 disabled={isPending}
                 onClick={() => {
                   const first = walletOptions[0]
-                  if (first) connect({ connector: first.connector() })
+                  if (first) connect({ connector: first.connector })
                 }}
               >
                 {isPending ? '...' : 'Connect'}
