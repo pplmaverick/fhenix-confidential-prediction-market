@@ -13,6 +13,7 @@ import { cofheClient } from './cofheClient'
 import { estimateGasFees } from './gas'
 import { CONTRACT_ADDRESS, ABI, CHAIN_ID } from './contract'
 import { Navbar } from './components/Navbar'
+import { WrongNetworkBanner } from './components/WrongNetworkBanner'
 import { MarketCard } from './components/MarketCard'
 import { MarketSelector } from './components/MarketSelector'
 import { PlaceBetCard } from './components/PlaceBetCard'
@@ -374,6 +375,7 @@ export default function App() {
   return (
     <div className="dark min-h-screen flex flex-col bg-background text-on-surface">
       <Navbar cofheReady={cofheReady} />
+      <WrongNetworkBanner />
 
       <main className="flex-grow w-full max-w-container-max mx-auto px-gutter py-xl">
 
