@@ -6,6 +6,7 @@ export default defineConfig({
   plugins: [react(), wasm()],
   optimizeDeps: {
     exclude: ['@cofhe/sdk', 'node-tfhe', 'tfhe'],
+    include: ['tweetnacl', 'iframe-shared-storage'],
   },
   worker: {
     plugins: () => [wasm()],
