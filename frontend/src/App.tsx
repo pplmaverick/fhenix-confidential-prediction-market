@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   useAccount,
   usePublicClient,
   useWalletClient,
   useReadContract,
+  useReadContracts,
   useChainId,
 } from 'wagmi'
 import { parseEther, parseEventLogs, formatEther } from 'viem'
@@ -136,6 +137,35 @@ export default function App() {
     abi: ABI,
     functionName: 'nextBetId',
   })
+
+  // Default market selection: once markets are loaded, pick the first OPEN
+  // market instead of always landing on #0 (which is often already resolved).
+  const marketCount = Number(nextMarketId ?? 0n)
+  const hasAutoSelectedMarket = useRef(false)
+
+  const { data: allMarketsData } = useReadContracts({
+    contracts: Array.from({ length: marketCount }, (_, i) => ({
+      address: CONTRACT_ADDRESS,
+      abi: ABI,
+      functionName: 'markets' as const,
+      args: [BigInt(i)] as const,
+    })),
+  })
+
+  useEffect(() => {
+    if (hasAutoSelectedMarket.current || marketCount === 0 || !allMarketsData) return
+
+    const firstOpenIndex = allMarketsData.findIndex((r) => {
+      if (r.status !== 'success') return false
+      const [, , locked, resolved] = r.result as readonly [string, `0x${string}`, boolean, boolean, boolean, bigint]
+      return !locked && !resolved
+    })
+
+    // All markets locked/resolved (or still loading) — fall back to the last one.
+    const defaultIndex = firstOpenIndex !== -1 ? firstOpenIndex : marketCount - 1
+    setMarketId(String(defaultIndex))
+    hasAutoSelectedMarket.current = true
+  }, [allMarketsData, marketCount])
 
   const wrongChain = isConnected && chainId !== CHAIN_ID
 
@@ -432,7 +462,7 @@ export default function App() {
 
               <div className="confidential-card rounded-xl p-md">
                 <MarketSelector
-                  marketCount={Number(nextMarketId ?? 0n)}
+                  marketCount={marketCount}
                   selectedId={marketId}
                   onSelect={(id) => { setMarketId(id); refetchMarket() }}
                 />
