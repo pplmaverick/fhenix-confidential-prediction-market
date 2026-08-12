@@ -59,5 +59,5 @@ All three fixes verified end-to-end on-chain via the extended `scripts/e2e.ts` (
 
 | Package | Version |
 |---|---|
-| @cofhe/sdk | 0.6.0 |
+| @cofhe/sdk | 0.6.1 |
 | @cofhe/hardhat-plugin | (see package.json) |
