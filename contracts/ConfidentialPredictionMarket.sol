@@ -80,6 +80,14 @@ contract ConfidentialPredictionMarket {
 
     // ─── Actions ────────────────────────────────────────────────────────────────
 
+    /**
+     * @notice Create a new prediction market. Permissionless — any address may call
+     *         this. The caller (msg.sender) is recorded as the market's owner, and
+     *         only that address will later be able to call lockMarket()/submitResult()
+     *         for this market (enforced via require(msg.sender == market.owner)).
+     * @param question The market question text.
+     * @return marketId The id assigned to the newly created market.
+     */
     function createMarket(string calldata question) external returns (uint256 marketId) {
         marketId = nextMarketId++;
         markets[marketId] = Market({
@@ -93,6 +101,19 @@ contract ConfidentialPredictionMarket {
         emit MarketCreated(marketId, question, msg.sender);
     }
 
+    /**
+     * @notice Create a new prediction market on behalf of a given `owner` address
+     *         rather than msg.sender. Permissionless — any address may call this,
+     *         and `owner` (not the caller) is recorded as the market's owner and is
+     *         the only address that will later be able to call lockMarket()/
+     *         submitResult() for this market. Intended for a relayer-style flow
+     *         (e.g. the deprecated MarketFactory — see DEPLOYMENT.md); currently
+     *         unused by the active frontend/scripts, which call createMarket()
+     *         directly.
+     * @param question The market question text.
+     * @param owner    Address to record as the market's owner.
+     * @return marketId The id assigned to the newly created market.
+     */
     function createMarketFor(string calldata question, address owner) external returns (uint256 marketId) {
         marketId = nextMarketId++;
         markets[marketId] = Market({
@@ -146,6 +167,15 @@ contract ConfidentialPredictionMarket {
         emit BetPlaced(marketId, betId, msg.sender);
     }
 
+    /**
+     * @notice Lock a market so no further bets can be placed. Restricted to the
+     *         market's owner (require(msg.sender == market.owner)) — there is no
+     *         contract-level admin role, only the per-market creator recorded at
+     *         createMarket() time may lock it. No time/deadline condition is
+     *         enforced on-chain; the contract has no concept of an end time, so
+     *         this may be called at any point after creation.
+     * @param marketId The market to lock.
+     */
     function lockMarket(uint256 marketId) external {
         Market storage market = markets[marketId];
         require(msg.sender == market.owner, "Not market owner");
@@ -154,6 +184,16 @@ contract ConfidentialPredictionMarket {
         emit MarketLocked(marketId);
     }
 
+    /**
+     * @notice Submit the final outcome for a locked market. Restricted to the
+     *         market's owner (require(msg.sender == market.owner)) — the same
+     *         address-based restriction as lockMarket(), not a contract-level
+     *         admin role. Must be called after lockMarket() and before any other
+     *         call to submitResult() for this market (checks-effects ordering via
+     *         market.locked / market.resolved); no time-based condition applies.
+     * @param marketId The market to resolve.
+     * @param outcome  true = Yes wins, false = No wins.
+     */
     function submitResult(uint256 marketId, bool outcome) external {
         Market storage market = markets[marketId];
         require(msg.sender == market.owner, "Not market owner");
@@ -162,6 +202,63 @@ contract ConfidentialPredictionMarket {
         market.resolved = true;
         market.outcome  = outcome;
         emit ResultSubmitted(marketId, outcome);
+    }
+
+    // ─── Views ──────────────────────────────────────────────────────────────────
+
+    /**
+     * @notice Read all fields of a market in a single call (the auto-generated
+     *         `markets(id)` getter already returns the same tuple; this is an
+     *         explicitly named convenience wrapper for frontend clarity).
+     * @param marketId The market to read.
+     * @return question   The market question text.
+     * @return owner      The address that created the market (and controls
+     *                     lockMarket()/submitResult()).
+     * @return locked     Whether betting is closed.
+     * @return resolved   Whether the outcome has been submitted.
+     * @return outcome    true = Yes wins, false = No wins (meaningful only if resolved).
+     * @return totalPool  Total ETH staked across all bets on this market, in wei.
+     */
+    function getMarketInfo(uint256 marketId) external view returns (
+        string memory question,
+        address owner,
+        bool locked,
+        bool resolved,
+        bool outcome,
+        uint256 totalPool
+    ) {
+        Market storage market = markets[marketId];
+        return (market.question, market.owner, market.locked, market.resolved,
+                market.outcome, market.totalPool);
+    }
+
+    /**
+     * @notice Return the ids of all bets placed by `user`, across every market.
+     *         Implemented as an on-chain scan over `bets[0..nextBetId)` filtered by
+     *         `Bet.bettor` (no separate address-indexed mapping is maintained) so
+     *         that placeBet() does not pay extra SSTORE gas on every real bet just
+     *         to serve this off-chain (eth_call, zero-gas-to-caller) read. Cost
+     *         scales with the total number of bets ever placed on the contract,
+     *         not just `user`'s; fine at current volume, but would need an
+     *         address-indexed mapping (paid for by extra write gas in placeBet())
+     *         if bet volume grows large enough to strain node eth_call limits.
+     * @param user The bettor address to look up.
+     * @return betIds The ids of every bet placed by `user`.
+     */
+    function getBetsByAddress(address user) external view returns (uint256[] memory betIds) {
+        uint256 count = 0;
+        for (uint256 i = 0; i < nextBetId; i++) {
+            if (bets[i].bettor == user) count++;
+        }
+
+        betIds = new uint256[](count);
+        uint256 j = 0;
+        for (uint256 i = 0; i < nextBetId; i++) {
+            if (bets[i].bettor == user) {
+                betIds[j] = i;
+                j++;
+            }
+        }
     }
 
     /**
