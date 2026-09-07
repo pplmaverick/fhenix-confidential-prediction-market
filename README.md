@@ -17,8 +17,8 @@ FHE-encrypted prediction market — bet amounts and choices are sealed on-chain 
 |---|---|
 | Network | Arbitrum Sepolia |
 | Chain ID | 421614 |
-| Contract | `0x9DE6ba0f6901e366BbCf373F7c8F63b5c955138d` (M3.1) |
-| Explorer | [View Contract](https://sepolia.arbiscan.io/address/0x9DE6ba0f6901e366BbCf373F7c8F63b5c955138d) |
+| Contract | `0x18A12F0872fDF5859022962931cF4D63b0a8f640` (M3.5) |
+| Explorer | [View Contract](https://sepolia.arbiscan.io/address/0x18A12F0872fDF5859022962931cF4D63b0a8f640#code) |
 
 ---
 
@@ -95,7 +95,8 @@ Decryption is performed off-chain by the Fhenix threshold network, returning `(p
 
 | Contract | Address |
 |---|---|
-| `ConfidentialPredictionMarket` (M3.1) | `0x9DE6ba0f6901e366BbCf373F7c8F63b5c955138d` |
+| `ConfidentialPredictionMarket` (M3.5) | `0x18A12F0872fDF5859022962931cF4D63b0a8f640` |
+| `ConfidentialPredictionMarket` (M3.1) | `0x9DE6ba0f6901e366BbCf373F7c8F63b5c955138d` (Deprecated — see DEPLOYMENT.md) |
 | `ConfidentialPredictionMarket` (deprecated, M3) | `0x79Dc91B97979E8d3cD6A56039EB2C282163b02aB` |
 | `MarketFactory` (Deprecated — see DEPLOYMENT.md) | `0x575FF2bb9f8F5Ef5Bd0198F316Cd7a1a7e8482FA` |
 
@@ -136,29 +137,75 @@ npx hardhat run scripts/e2e.ts --network arbitrumSepolia
 ## Contract Interface
 
 ```solidity
-// Create a new prediction market
+// Create a new prediction market. Permissionless — any address may call this;
+// the caller becomes the market's owner (controls lockMarket()/submitResult()).
 createMarket(string calldata question) external returns (uint256 marketId)
 
-// Place a bet with FHE-encrypted amount and choice
+// Create a market on behalf of a given `owner` instead of msg.sender.
+// Permissionless — currently unused by the active frontend/scripts.
+createMarketFor(string calldata question, address owner) external returns (uint256 marketId)
+
+// Place a bet with an FHE-encrypted choice. The stake amount is the ETH sent
+// (msg.value), encrypted on-chain — there is no separate encrypted-amount input.
 placeBet(
     uint256 marketId,
-    InEuint64 calldata encAmount,   // encrypted bet amount
-    InEbool   calldata encChoice    // encrypted choice: true = Yes, false = No
+    InEbool calldata encChoice   // encrypted choice: true = Yes, false = No
 ) external payable returns (uint256 betId)
 
-// Lock the betting period
+// Lock the betting period. Restricted to market.owner (require(msg.sender == market.owner)).
 lockMarket(uint256 marketId) external
 
-// Reveal the outcome (market owner only)
+// Submit the final outcome. Restricted to market.owner; must be called after lockMarket().
 submitResult(uint256 marketId, bool outcome) external
 
-// FHE winner computation — stores encrypted payout ctHash
+// Read all fields of a market in one call. Anyone may call.
+getMarketInfo(uint256 marketId) external view returns (
+    string memory question,
+    address owner,
+    bool locked,
+    bool resolved,
+    bool outcome,
+    uint256 totalPool
+)
+
+// Return every bet id placed by `user`, across all markets. Anyone may call.
+getBetsByAddress(address user) external view returns (uint256[] memory betIds)
+
+// FHE sum of all winning bets' encrypted amounts. Anyone may call after submitResult();
+// decrypt the resulting ctHash off-chain, then call submitWinnerPool().
+revealWinnerPool(uint256 marketId) external
+
+// Store the decrypted winner pool. Anyone may call, with (plainWinnerPool, ctHash,
+// signature) obtained from decryptForTx() on the revealWinnerPool() result.
+submitWinnerPool(
+    uint256 marketId,
+    uint256 plainWinnerPool,
+    uint256 ctHash,
+    bytes calldata signature
+) external
+
+// Settle a market where the decrypted winner pool is zero (nobody picked the winning
+// side), verified via the CoFHE decrypt proof. Anyone may call.
+settleNoWinners(
+    uint256 marketId,
+    uint256 ctHash,
+    bytes calldata signature
+) external
+
+// Reclaim a bet's original stake after settleNoWinners(). Restricted to the bet's
+// own bettor (require(bets[betId].bettor == msg.sender)).
+withdrawRefund(uint256 betId, uint256 marketId) external
+
+// FHE winner computation — stores encrypted payout ctHash. Restricted to the bet's
+// own bettor; requires the market resolved and submitWinnerPool() already called.
 claimWinnings(uint256 betId, uint256 marketId) external
 
-// Finalize withdrawal after off-chain decryption
+// Finalize withdrawal after off-chain decryption of claimWinnings()'s payout.
+// Restricted to the bet's own bettor.
 withdraw(
     uint256 betId,
-    uint256 plainPayout,
+    uint256 marketId,
+    uint256 plainBetAmount,
     uint256 ctHash,
     bytes calldata signature
 ) external
