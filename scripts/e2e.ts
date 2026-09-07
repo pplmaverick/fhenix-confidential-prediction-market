@@ -366,6 +366,34 @@ async function main() {
   log("Tx hash", rc21?.hash ?? tx21.hash);
   log("Balance delta", hre.ethers.formatEther(balAfterRefund - balBeforeRefund) + " ETH (refund - gas, expect ~+0.0001)");
 
+  // ── Step 22: getMarketInfo / getBetsByAddress (M3.5 view functions) ──────
+  step(22, "getMarketInfo / getBetsByAddress — verify M3.5 view functions");
+
+  const info0 = await contract.getMarketInfo(marketId);
+  log("Market 0 question", info0.question);
+  log("Market 0 owner", info0.owner);
+  log("Market 0 locked/resolved/outcome", `${info0.locked}/${info0.resolved}/${info0.outcome}`);
+  log("Market 0 totalPool", hre.ethers.formatEther(info0.totalPool) + " ETH (expect " + hre.ethers.formatEther(STAKE * 2n) + ")");
+  if (info0.question !== question || info0.owner !== signer.address || !info0.locked || !info0.resolved) {
+    throw new Error("getMarketInfo(market 0) mismatch");
+  }
+
+  const info1 = await contract.getMarketInfo(marketId2);
+  log("Market 1 totalPool", hre.ethers.formatEther(info1.totalPool) + " ETH (expect " + hre.ethers.formatEther(STAKE) + ")");
+  if (info1.question !== question2 || info1.totalPool !== STAKE) {
+    throw new Error("getMarketInfo(market 1) mismatch");
+  }
+  console.log("  ✅ PASS: getMarketInfo returns correct fields for both markets");
+
+  const myBets: bigint[] = await contract.getBetsByAddress(signer.address);
+  log("getBetsByAddress(signer)", `[${myBets.join(", ")}] (expect [0, 1, ${betId3}])`);
+  const expectedBetIds = [0n, 1n, betId3].sort();
+  const actualBetIds = [...myBets].sort();
+  if (JSON.stringify(actualBetIds) !== JSON.stringify(expectedBetIds)) {
+    throw new Error("getBetsByAddress(signer) mismatch");
+  }
+  console.log("  ✅ PASS: getBetsByAddress returns all 3 of the signer's bets");
+
   // ── Summary ───────────────────────────────────────────────────────────────
   console.log(`\n${"═".repeat(60)}`);
   console.log("  ✅ E2E Complete");

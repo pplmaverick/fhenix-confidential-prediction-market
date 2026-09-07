@@ -1,4 +1,4 @@
-export const CONTRACT_ADDRESS = '0x9DE6ba0f6901e366BbCf373F7c8F63b5c955138d' as const
+export const CONTRACT_ADDRESS = '0x18A12F0872fDF5859022962931cF4D63b0a8f640' as const
 
 export const CHAIN_ID = 421614 // Arbitrum Sepolia
 
