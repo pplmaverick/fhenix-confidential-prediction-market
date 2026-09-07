@@ -7,7 +7,6 @@
 | Contract | Address | Deployed | Status |
 |---|---|---|---|
 | ConfidentialPredictionMarket | 0x9DE6ba0f6901e366BbCf373F7c8F63b5c955138d | M3.1 | Active |
-| MarketFactory | 0x575FF2bb9f8F5Ef5Bd0198F316Cd7a1a7e8482FA | M3 | Active |
 
 ### M3.1 Security Patch Deployment
 
@@ -32,12 +31,13 @@ All three fixes verified end-to-end on-chain via the extended `scripts/e2e.ts` (
 |---|---|---|
 | ConfidentialPredictionMarket (M3) | 0x79Dc91B97979E8d3cD6A56039EB2C282163b02aB | Deprecated at M3.1 (2026-07-08) — superseded by the security patch above; preserved for history |
 | ConfidentialPredictionMarket (M1/M2) | 0x072A3A0C04Cf8CDcaf5B4A73a4Ed4fF5A841531f | Deprecated at M3 — retains 36 tx history |
+| MarketFactory | 0x575FF2bb9f8F5Ef5Bd0198F316Cd7a1a7e8482FA | Deprecated/Unused — deployed 2026-06-25 as an alternative "one contract per market" architecture, superseded same day (commit ca4be16) by the current monolithic-contract design where createMarket() is called directly and markets are tracked via nextMarketId()/markets() mapping. Frontend references removed in commit 9c383c3. Contract remains deployed on-chain but is not part of the active system. |
 
 ### Explorer
 - Active contract (M3.1): https://sepolia.arbiscan.io/address/0x9DE6ba0f6901e366BbCf373F7c8F63b5c955138d
-- MarketFactory: https://sepolia.arbiscan.io/address/0x575FF2bb9f8F5Ef5Bd0198F316Cd7a1a7e8482FA
 - Deprecated (M3): https://sepolia.arbiscan.io/address/0x79Dc91B97979E8d3cD6A56039EB2C282163b02aB
 - Deprecated (M1/M2): https://sepolia.arbiscan.io/address/0x072A3A0C04Cf8CDcaf5B4A73a4Ed4fF5A841531f
+- Deprecated/Unused (MarketFactory): https://sepolia.arbiscan.io/address/0x575FF2bb9f8F5Ef5Bd0198F316Cd7a1a7e8482FA
 
 ## Transaction History
 
