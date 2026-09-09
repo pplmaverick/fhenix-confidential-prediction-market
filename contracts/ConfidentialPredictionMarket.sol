@@ -5,8 +5,7 @@ import {
     FHE,
     euint64,
     ebool,
-    InEuint64,
-    InEbool
+    externalEbool
 } from "@fhenixprotocol/cofhe-contracts/FHE.sol";
 
 /**
@@ -131,11 +130,15 @@ contract ConfidentialPredictionMarket {
      * @notice Place a bet with an encrypted choice; the encrypted stake amount is
      *         derived directly from msg.value so it can never diverge from the ETH sent.
      * @param marketId  Target market.
-     * @param encChoice FHE-encrypted choice: encrypt(true) = Yes, encrypt(false) = No.
+     * @param encChoice FHE-encrypted choice handle: encrypt(true) = Yes, encrypt(false) = No.
+     * @param proof     CoFHE batch proof authorising encChoice for this contract. The
+     *                  verifier binds the consuming contract address into the signed
+     *                  digest, so a proof issued for another contract cannot be replayed here.
      */
     function placeBet(
         uint256 marketId,
-        InEbool calldata encChoice
+        externalEbool encChoice,
+        bytes calldata proof
     ) external payable returns (uint256 betId) {
         Market storage market = markets[marketId];
         require(!market.locked, "Market is locked");
@@ -144,7 +147,7 @@ contract ConfidentialPredictionMarket {
 
         // Encrypt msg.value directly — the bet amount can never diverge from the ETH paid
         euint64 amount = FHE.asEuint64(msg.value);
-        ebool   choice = FHE.asEbool(encChoice);
+        ebool   choice = FHE.asEbool(encChoice, proof);
 
         // ACL: grant this contract future access to the ciphertexts
         FHE.allowThis(amount);
