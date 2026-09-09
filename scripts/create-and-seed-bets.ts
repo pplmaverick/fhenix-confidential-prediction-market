@@ -16,7 +16,10 @@ import { createPublicClient, createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { arbitrumSepolia as viemArbSepolia } from "viem/chains";
 
-const CONTRACT_ADDRESS = "0x9DE6ba0f6901e366BbCf373F7c8F63b5c955138d";
+// Defaults to the M3.1 contract this tool was first written for; override with
+// CONTRACT_ADDRESS=0x... to seed any other deployment.
+const CONTRACT_ADDRESS =
+  process.env.CONTRACT_ADDRESS ?? "0x9DE6ba0f6901e366BbCf373F7c8F63b5c955138d";
 const STAKE = "0.0001"; // ETH per test bet
 
 const MARKETS: { question: string; betYes: boolean }[] = [
@@ -24,15 +27,6 @@ const MARKETS: { question: string; betYes: boolean }[] = [
   { question: "Will Bitcoin ETF daily inflow exceed $1B in Q4 2026?", betYes: false },
   { question: "Will Fhenix TGE happen before March 2027?", betYes: true },
 ];
-
-function toInEbool(enc: { ctHash: bigint; securityZone: number; utype: number; signature: string }) {
-  return {
-    ctHash: enc.ctHash,
-    securityZone: enc.securityZone,
-    utype: enc.utype,
-    signature: enc.signature,
-  };
-}
 
 async function main() {
   const [signer] = await hre.ethers.getSigners();
@@ -56,7 +50,7 @@ async function main() {
   const cofheConfig = createCofheConfig({ supportedChains: [arbSepolia] });
   const cofheClient = createCofheClient(cofheConfig);
   await cofheClient.connect(publicClient, walletClient);
-  await cofheClient.permits.getOrCreateSelfPermit();
+  await cofheClient.acp.createSelf({ issuer: account.address });
   console.log("CoFHE client ready\n");
 
   const contract = await hre.ethers.getContractAt(
@@ -76,9 +70,12 @@ async function main() {
     console.log(`  Tx hash:   ${createRc?.hash ?? createTx.hash}`);
 
     console.log(`  Encrypting choice (${betYes ? "Yes" : "No"}) via CoFHE...`);
-    const [encChoice] = await cofheClient.encryptInputs([Encryptable.bool(betYes)]).execute();
+    const [encChoice, proof] = await cofheClient
+      .encryptInputs([Encryptable.bool(betYes)])
+      .setConsumingContract(CONTRACT_ADDRESS)
+      .execute();
 
-    const betTx = await contract.placeBet(marketId, toInEbool(encChoice as any), {
+    const betTx = await contract.placeBet(marketId, encChoice, proof, {
       value: hre.ethers.parseEther(STAKE),
     });
     const betRc = await betTx.wait();

@@ -1,6 +1,9 @@
 import hre from "hardhat";
 
-const CONTRACT_ADDRESS = "0x9DE6ba0f6901e366BbCf373F7c8F63b5c955138d";
+// Defaults to the M3.1 contract this tool was first written for; override with
+// CONTRACT_ADDRESS=0x... to scan any other deployment.
+const CONTRACT_ADDRESS =
+  process.env.CONTRACT_ADDRESS ?? "0x9DE6ba0f6901e366BbCf373F7c8F63b5c955138d";
 
 const ABI = [
   {

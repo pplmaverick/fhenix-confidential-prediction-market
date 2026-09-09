@@ -100,7 +100,7 @@ async function main() {
   });
   const cofheClient = createCofheClient(cofheConfig);
   await cofheClient.connect(publicClient, walletClient);
-  await cofheClient.permits.getOrCreateSelfPermit();
+  await cofheClient.acp.createSelf({ issuer: account.address });
   console.log("  ✅ CoFHE client ready");
 
   // ── Step 1: Deploy ────────────────────────────────────────────────────────
@@ -127,31 +127,23 @@ async function main() {
   const marketId = 0n;
   log("Market ID", marketId.toString());
 
-  // ── Helper: build InEbool from SDK encrypted output ────────────────────────
-  function toInEbool(enc: { ctHash: bigint; securityZone: number; utype: number; signature: string }) {
-    return {
-      ctHash: enc.ctHash,
-      securityZone: enc.securityZone,
-      utype: enc.utype,
-      signature: enc.signature,
-    };
-  }
-
   const STAKE = hre.ethers.parseEther("0.0001"); // 0.0001 ETH per bet
 
   // ── Step 3: placeBet(Yes) ─────────────────────────────────────────────────
   step(3, "placeBet — encrypted choice = Yes (true)");
 
   console.log("  Encrypting inputs via CoFHE...");
-  const [encChoice1] = await cofheClient
+  const [encChoice1, proof1] = await cofheClient
     .encryptInputs([
       Encryptable.bool(true), // Yes
     ])
+    .setConsumingContract(contractAddress)
     .execute();
 
   const tx3 = await contract.placeBet(
     marketId,
-    toInEbool(encChoice1 as any),
+    encChoice1,
+    proof1,
     { value: STAKE }
   );
   const rc3 = await tx3.wait();
@@ -164,15 +156,17 @@ async function main() {
   step(4, "placeBet — encrypted choice = No (false)");
 
   console.log("  Encrypting inputs via CoFHE...");
-  const [encChoice2] = await cofheClient
+  const [encChoice2, proof2] = await cofheClient
     .encryptInputs([
       Encryptable.bool(false), // No
     ])
+    .setConsumingContract(contractAddress)
     .execute();
 
   const tx4 = await contract.placeBet(
     marketId,
-    toInEbool(encChoice2 as any),
+    encChoice2,
+    proof2,
     { value: STAKE }
   );
   const rc4 = await tx4.wait();
@@ -218,7 +212,7 @@ async function main() {
   step(8, "CoFHE decrypt winner pool");
   console.log("  ⏳ Polling Fhenix threshold network... (may take 30-90s)");
 
-  const wpDecrypt = await cofheClient.decryptForTx(encWinnerPoolCtHash).withoutPermit().execute();
+  const wpDecrypt = await cofheClient.decryptForTx(encWinnerPoolCtHash).withoutACP().execute();
   const plainWinnerPool = wpDecrypt.decryptedValue;
   log("plainWinnerPool", hre.ethers.formatEther(plainWinnerPool) + " ETH (expect 0.0001)");
 
@@ -249,7 +243,7 @@ async function main() {
   step(11, "CoFHE decrypt payout");
   console.log("  ⏳ Polling Fhenix threshold network... (may take 30-90s)");
 
-  const payDecrypt = await cofheClient.decryptForTx(encPayoutCtHash).withoutPermit().execute();
+  const payDecrypt = await cofheClient.decryptForTx(encPayoutCtHash).withoutACP().execute();
   const plainBetAmount = payDecrypt.decryptedValue;
   log("plainBetAmount", hre.ethers.formatEther(plainBetAmount) + " ETH (expect 0.0001)");
 
@@ -303,8 +297,11 @@ async function main() {
   // ── Step 15: placeBet(No) — the only bet in this market ──────────────────
   step(15, "placeBet — encrypted choice = No (false), sole bettor");
 
-  const [encChoice3] = await cofheClient.encryptInputs([Encryptable.bool(false)]).execute();
-  const tx15 = await contract.placeBet(marketId2, toInEbool(encChoice3 as any), {
+  const [encChoice3, proof3] = await cofheClient
+    .encryptInputs([Encryptable.bool(false)])
+    .setConsumingContract(contractAddress)
+    .execute();
+  const tx15 = await contract.placeBet(marketId2, encChoice3, proof3, {
     value: STAKE,
     ...(await txOpts()),
   });
@@ -340,7 +337,7 @@ async function main() {
   step(19, "CoFHE decrypt winner pool (Fix #3: expect 0)");
   console.log("  ⏳ Polling Fhenix threshold network... (may take 30-90s)");
 
-  const wpDecrypt2 = await cofheClient.decryptForTx(encWinnerPoolCtHash2).withoutPermit().execute();
+  const wpDecrypt2 = await cofheClient.decryptForTx(encWinnerPoolCtHash2).withoutACP().execute();
   const plainWinnerPool2 = wpDecrypt2.decryptedValue;
   log("plainWinnerPool", plainWinnerPool2.toString() + " (expect 0)");
 
@@ -387,10 +384,15 @@ async function main() {
 
   const myBets: bigint[] = await contract.getBetsByAddress(signer.address);
   log("getBetsByAddress(signer)", `[${myBets.join(", ")}] (expect [0, 1, ${betId3}])`);
-  const expectedBetIds = [0n, 1n, betId3].sort();
-  const actualBetIds = [...myBets].sort();
-  if (JSON.stringify(actualBetIds) !== JSON.stringify(expectedBetIds)) {
-    throw new Error("getBetsByAddress(signer) mismatch");
+  // Compare as strings: JSON.stringify cannot serialize BigInt, and a bare .sort()
+  // on bigints sorts lexicographically (10n would land before 2n).
+  const byValue = (a: bigint, b: bigint) => (a < b ? -1 : a > b ? 1 : 0);
+  const expectedBetIds = [0n, 1n, betId3].sort(byValue).join(",");
+  const actualBetIds = [...myBets].sort(byValue).join(",");
+  if (actualBetIds !== expectedBetIds) {
+    throw new Error(
+      `getBetsByAddress(signer) mismatch — expected [${expectedBetIds}], got [${actualBetIds}]`
+    );
   }
   console.log("  ✅ PASS: getBetsByAddress returns all 3 of the signer's bets");
 

@@ -42,10 +42,6 @@ function log(label: string, value: string) {
   console.log(`  ${label.padEnd(24)}: ${value}`);
 }
 
-function toInEbool(enc: any) {
-  return { ctHash: enc.ctHash, securityZone: enc.securityZone, utype: enc.utype, signature: enc.signature };
-}
-
 async function main() {
   console.log("\n🔐 Fhenix CPM — Proportional Payout E2E Test");
   console.log("   Network : Arbitrum Sepolia (chainId 421614)");
@@ -104,11 +100,11 @@ async function main() {
 
   const cofheClientA = createCofheClient(cofheConfig);
   await cofheClientA.connect(publicClient, walletClientA);
-  await cofheClientA.permits.getOrCreateSelfPermit();
+  await cofheClientA.acp.createSelf({ issuer: accountA.address });
 
   const cofheClientB = createCofheClient(cofheConfig);
   await cofheClientB.connect(publicClient, walletClientB);
-  await cofheClientB.permits.getOrCreateSelfPermit();
+  await cofheClientB.acp.createSelf({ issuer: accountB.address });
 
   console.log("  ✅ CoFHE clients ready");
 
@@ -151,15 +147,17 @@ async function main() {
 
   const STAKE_A = hre.ethers.parseEther("0.01");
   console.log("  Encrypting inputs via CoFHE...");
-  const [encChoA] = await cofheClientA
+  const [encChoA, proofA] = await cofheClientA
     .encryptInputs([
       Encryptable.bool(true), // YES
     ])
+    .setConsumingContract(CONTRACT_ADDRESS)
     .execute();
 
   const tx2 = await contractA.placeBet(
     marketId,
-    toInEbool(encChoA),
+    encChoA,
+    proofA,
     { ...(await txOpts()), value: STAKE_A }
   );
   const rc2 = await tx2.wait();
@@ -188,15 +186,17 @@ async function main() {
 
   const STAKE_B = hre.ethers.parseEther("0.02");
   console.log("  Encrypting inputs via CoFHE...");
-  const [encChoB] = await cofheClientB
+  const [encChoB, proofB] = await cofheClientB
     .encryptInputs([
       Encryptable.bool(false), // NO
     ])
+    .setConsumingContract(CONTRACT_ADDRESS)
     .execute();
 
   const tx3 = await contractB.placeBet(
     marketId,
-    toInEbool(encChoB),
+    encChoB,
+    proofB,
     { ...(await txOpts()), value: STAKE_B }
   );
   const rc3 = await tx3.wait();
@@ -268,7 +268,7 @@ async function main() {
 
   const wpDecrypt = await cofheClientA
     .decryptForTx(encWinnerPoolCtHash)
-    .withoutPermit()
+    .withoutACP()
     .execute();
 
   const plainWinnerPool = wpDecrypt.decryptedValue;
@@ -318,7 +318,7 @@ async function main() {
 
   const payDecrypt = await cofheClientA
     .decryptForTx(encPayoutCtHash)
-    .withoutPermit()
+    .withoutACP()
     .execute();
 
   const plainBetAmount = payDecrypt.decryptedValue;

@@ -1,8 +1,15 @@
 import hre from "hardhat";
 
-const CONTRACT_ADDRESS = "0x9DE6ba0f6901e366BbCf373F7c8F63b5c955138d";
-const DEPLOY_TX_HASH = "0x675323436baa15e2ea34bca599880d30f1e91ddd8db7e1851afd9ce98d9cf597";
-const MARKET_IDS = [2, 3, 4, 5, 6];
+// Defaults target the M3.1 contract this tool was first written for. Override with
+// CONTRACT_ADDRESS / DEPLOY_TX_HASH / MARKET_IDS (comma-separated) to scan another
+// deployment — DEPLOY_TX_HASH sets the block floor for the eth_getLogs scan.
+const CONTRACT_ADDRESS =
+  process.env.CONTRACT_ADDRESS ?? "0x9DE6ba0f6901e366BbCf373F7c8F63b5c955138d";
+const DEPLOY_TX_HASH =
+  process.env.DEPLOY_TX_HASH ?? "0x675323436baa15e2ea34bca599880d30f1e91ddd8db7e1851afd9ce98d9cf597";
+const MARKET_IDS = process.env.MARKET_IDS
+  ? process.env.MARKET_IDS.split(",").map((s) => Number(s.trim()))
+  : [2, 3, 4, 5, 6];
 const LOG_RANGE = 10_000; // public Arbitrum Sepolia RPC caps eth_getLogs block ranges
 
 const ABI = [
@@ -72,7 +79,8 @@ async function main() {
 
   console.log("─".repeat(70));
   if (nonDevBettors.size === 0) {
-    console.log("✅ All bets across markets #2–#6 were placed by the dev wallet.");
+    const scanned = MARKET_IDS.map((id) => `#${id}`).join(", ");
+    console.log(`✅ All bets across markets ${scanned} were placed by the dev wallet.`);
   } else {
     console.log(`⚠️  ${nonDevBettors.size} non-dev address(es) found — real user funds present:`);
     for (const addr of nonDevBettors) console.log(`   ${addr}`);

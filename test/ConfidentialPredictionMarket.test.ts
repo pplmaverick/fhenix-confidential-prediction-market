@@ -30,17 +30,8 @@ async function makeCofheClient(signer: HardhatEthersSigner) {
   const client = createCofheClient(config);
   const { publicClient, walletClient } = await HardhatSignerAdapter(signer);
   await client.connect(publicClient, walletClient);
-  await client.permits.getOrCreateSelfPermit();
+  await client.acp.createSelf({ issuer: signer.address });
   return client;
-}
-
-function toInEbool(enc: { ctHash: bigint; securityZone: number; utype: number; signature: string }) {
-  return {
-    ctHash: enc.ctHash,
-    securityZone: enc.securityZone,
-    utype: enc.utype,
-    signature: enc.signature,
-  };
 }
 
 function findEventArg(contract: any, receipt: any, eventName: string, argIndex: number): bigint {
@@ -130,10 +121,13 @@ describe("ConfidentialPredictionMarket", function () {
       await contract.connect(owner).createMarket("Q");
 
       const client = await makeCofheClient(bettorYes);
-      const [encChoice] = await client.encryptInputs([Encryptable.bool(true)]).execute();
+      const [encChoice, proof] = await client
+        .encryptInputs([Encryptable.bool(true)])
+        .setConsumingContract(await contract.getAddress())
+        .execute();
 
       await expect(
-        contract.connect(bettorYes).placeBet(0, toInEbool(encChoice as any), { value: 0 })
+        contract.connect(bettorYes).placeBet(0, encChoice, proof, { value: 0 })
       ).to.be.revertedWith("Must send ETH as stake");
     });
   });
@@ -146,15 +140,23 @@ describe("ConfidentialPredictionMarket", function () {
       const clientYes = await makeCofheClient(bettorYes);
       const clientNo = await makeCofheClient(bettorNo);
 
-      const [encYes] = await clientYes.encryptInputs([Encryptable.bool(true)]).execute();
+      const contractAddress = await contract.getAddress();
+
+      const [encYes, proofYes] = await clientYes
+        .encryptInputs([Encryptable.bool(true)])
+        .setConsumingContract(contractAddress)
+        .execute();
       await contract
         .connect(bettorYes)
-        .placeBet(0, toInEbool(encYes as any), { value: hre.ethers.parseEther("0.001") });
+        .placeBet(0, encYes, proofYes, { value: hre.ethers.parseEther("0.001") });
 
-      const [encNo] = await clientNo.encryptInputs([Encryptable.bool(false)]).execute();
+      const [encNo, proofNo] = await clientNo
+        .encryptInputs([Encryptable.bool(false)])
+        .setConsumingContract(contractAddress)
+        .execute();
       await contract
         .connect(bettorNo)
-        .placeBet(0, toInEbool(encNo as any), { value: hre.ethers.parseEther("0.002") });
+        .placeBet(0, encNo, proofNo, { value: hre.ethers.parseEther("0.002") });
 
       const yesBets = await contract.getBetsByAddress(bettorYes.address);
       const noBets = await contract.getBetsByAddress(bettorNo.address);
@@ -175,11 +177,19 @@ describe("ConfidentialPredictionMarket", function () {
       const clientNo = await makeCofheClient(bettorNo);
       const STAKE = hre.ethers.parseEther("0.0001");
 
-      const [encYes] = await clientYes.encryptInputs([Encryptable.bool(true)]).execute();
-      await contract.connect(bettorYes).placeBet(0, toInEbool(encYes as any), { value: STAKE });
+      const contractAddress = await contract.getAddress();
 
-      const [encNo] = await clientNo.encryptInputs([Encryptable.bool(false)]).execute();
-      await contract.connect(bettorNo).placeBet(0, toInEbool(encNo as any), { value: STAKE });
+      const [encYes, proofYes] = await clientYes
+        .encryptInputs([Encryptable.bool(true)])
+        .setConsumingContract(contractAddress)
+        .execute();
+      await contract.connect(bettorYes).placeBet(0, encYes, proofYes, { value: STAKE });
+
+      const [encNo, proofNo] = await clientNo
+        .encryptInputs([Encryptable.bool(false)])
+        .setConsumingContract(contractAddress)
+        .execute();
+      await contract.connect(bettorNo).placeBet(0, encNo, proofNo, { value: STAKE });
 
       await contract.connect(owner).lockMarket(0);
       await contract.connect(owner).submitResult(0, true); // Yes wins
@@ -187,7 +197,7 @@ describe("ConfidentialPredictionMarket", function () {
       const revealRc = await (await contract.revealWinnerPool(0)).wait();
       const encWinnerPoolCtHash = findEventArg(contract, revealRc, "WinnerPoolRevealed", 1);
 
-      const wpDecrypt = await clientYes.decryptForTx(encWinnerPoolCtHash).withoutPermit().execute();
+      const wpDecrypt = await clientYes.decryptForTx(encWinnerPoolCtHash).withoutACP().execute();
       await contract.submitWinnerPool(
         0,
         wpDecrypt.decryptedValue,
@@ -198,7 +208,7 @@ describe("ConfidentialPredictionMarket", function () {
       const claimRc = await (await contract.connect(bettorYes).claimWinnings(0, 0)).wait();
       const encPayoutCtHash = findEventArg(contract, claimRc, "WinningsClaimed", 2);
 
-      const payDecrypt = await clientYes.decryptForTx(encPayoutCtHash).withoutPermit().execute();
+      const payDecrypt = await clientYes.decryptForTx(encPayoutCtHash).withoutACP().execute();
 
       const balBefore = await hre.ethers.provider.getBalance(bettorYes.address);
       const withdrawTx = await contract
