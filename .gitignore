@@ -3,6 +3,5 @@ dist/
 artifacts/
 cache/
 .env
-deployments/
 typechain-types/
 .vercel
