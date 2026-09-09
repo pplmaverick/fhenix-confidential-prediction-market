@@ -6,9 +6,13 @@
 
 | Contract | Address | Deployed | Status |
 |---|---|---|---|
-| ConfidentialPredictionMarket | 0xBd24A5e2656FDD006c5731c0A8F60c1cd240dFe7 | M4 | Active |
+| ConfidentialPredictionMarket | 0xBd24A5e2656FDD006c5731c0A8F60c1cd240dFe7 | M3.6 | Active |
 
-### M4 — @cofhe/sdk 0.7.1 Migration Deployment
+### M3.6 — @cofhe/sdk 0.7.1 Migration Deployment
+
+Numbered M3.6 rather than M4: this is a compatibility/maintenance release forced by an
+upstream breaking change, not a feature milestone. M4 remains reserved for Oracle
+Integration on the roadmap.
 
 | Field | Value |
 |---|---|
@@ -80,7 +84,7 @@ on Arbitrum Sepolia with the same dev wallet, which succeeded — proved the ser
 healthy. The real cause was client-side: SDK 0.6.1 calls `POST /verify`, an endpoint Fhenix
 removed in the 0.7.x rollout (direct probe: `/verify` → HTTP 404 empty body,
 `/verifyBatch` → HTTP 422 naming the missing `contract_address` field). The empty 404 body
-is what produced the truncated `ZK_VERIFY_FAILED: ... - ` message. Resolved by the M4
+is what produced the truncated `ZK_VERIFY_FAILED: ... - ` message. Resolved by the M3.6
 migration above. Evidence: `docs/evidence/pre-0.7.1-migration-snapshot.md`.
 
 ### M3.1 Security Patch Deployment
@@ -111,7 +115,7 @@ All three fixes verified end-to-end on-chain via the extended `scripts/e2e.ts` (
 | MarketFactory | 0x575FF2bb9f8F5Ef5Bd0198F316Cd7a1a7e8482FA | Deprecated/Unused — deployed 2026-06-25 as an alternative "one contract per market" architecture, superseded same day (commit ca4be16) by the current monolithic-contract design where createMarket() is called directly and markets are tracked via nextMarketId()/markets() mapping. Frontend references removed in commit 9c383c3. Contract remains deployed on-chain but is not part of the active system. |
 
 ### Explorer
-- Active contract (M4): https://sepolia.arbiscan.io/address/0xBd24A5e2656FDD006c5731c0A8F60c1cd240dFe7#code
+- Active contract (M3.6): https://sepolia.arbiscan.io/address/0xBd24A5e2656FDD006c5731c0A8F60c1cd240dFe7#code
 - Deprecated (M3.5): https://sepolia.arbiscan.io/address/0x18A12F0872fDF5859022962931cF4D63b0a8f640
 - Deprecated (M3.1): https://sepolia.arbiscan.io/address/0x9DE6ba0f6901e366BbCf373F7c8F63b5c955138d
 - Deprecated (M3): https://sepolia.arbiscan.io/address/0x79Dc91B97979E8d3cD6A56039EB2C282163b02aB

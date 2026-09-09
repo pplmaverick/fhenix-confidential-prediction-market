@@ -97,3 +97,8 @@ on this contract — consistent with the root cause, since every bet attempt die
 `encryptInputs()` before a transaction was ever submitted. The contract holds 0 ETH and
 `Market #0` is empty, so it is orphaned metadata only, with no third-party stake to migrate
 or refund. Safe to deprecate.
+
+Superseded by **M3.6** — `0xBd24A5e2656FDD006c5731c0A8F60c1cd240dFe7`, deployed 2026-09-09
+(deploy tx `0x3fa195bd2e664f1cff451f67bca5d447a29a9cb32c7a31be112f4bce0f2c2ad7`). The
+migration is numbered M3.6 rather than M4 because it is a compatibility release forced by an
+upstream breaking change; M4 remains reserved for Oracle Integration on the roadmap.
