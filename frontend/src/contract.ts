@@ -1,4 +1,4 @@
-export const CONTRACT_ADDRESS = '0x18A12F0872fDF5859022962931cF4D63b0a8f640' as const
+export const CONTRACT_ADDRESS = '0xBd24A5e2656FDD006c5731c0A8F60c1cd240dFe7' as const
 
 export const CHAIN_ID = 421614 // Arbitrum Sepolia
 
@@ -23,17 +23,8 @@ export const ABI = [
   {
     inputs: [
       { internalType: 'uint256', name: 'marketId', type: 'uint256' },
-      {
-        components: [
-          { internalType: 'uint256', name: 'ctHash', type: 'uint256' },
-          { internalType: 'uint8', name: 'securityZone', type: 'uint8' },
-          { internalType: 'uint8', name: 'utype', type: 'uint8' },
-          { internalType: 'bytes', name: 'signature', type: 'bytes' },
-        ],
-        internalType: 'struct InEbool',
-        name: 'encChoice',
-        type: 'tuple',
-      },
+      { internalType: 'externalEbool', name: 'encChoice', type: 'bytes32' },
+      { internalType: 'bytes', name: 'proof', type: 'bytes' },
     ],
     name: 'placeBet',
     outputs: [{ internalType: 'uint256', name: 'betId', type: 'uint256' }],

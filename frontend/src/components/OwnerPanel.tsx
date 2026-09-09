@@ -169,7 +169,7 @@ export function OwnerPanel({ marketId, owner, marketStatus, addLog, refetchMarke
       }
 
       addLog('CoFHE network decrypting (20-60s)...')
-      const wpDecrypt = await cofheClient.decryptForTx(encWinnerPoolCtHash).withoutPermit().execute()
+      const wpDecrypt = await cofheClient.decryptForTx(encWinnerPoolCtHash).withoutACP().execute()
       const plainWinnerPool = wpDecrypt.decryptedValue
       setDecryptedWinnerPool({
         value: plainWinnerPool,

@@ -91,19 +91,23 @@ export default function App() {
           addLog('CoFHE client ready ✓')
         }
 
-        // permit runs in background; failure does not block betting
+        // ACP runs in background; failure does not block betting
         if (!cancelled) {
           try {
             setCofheStatus('signing')
-            await cofheClient.permits.getOrCreateSelfPermit()
+            // getOrCreateSelfACP() is the idempotent 1:1 replacement for the old
+            // permits.getOrCreateSelfPermit(): it reuses the active ACP instead of
+            // prompting for a fresh wallet signature on every reconnect. It resolves
+            // the account from the connected walletClient, so no `address` dep is needed.
+            await cofheClient.acp.getOrCreateSelfACP()
             if (!cancelled) {
               setCofheStatus('ready')
-              addLog('FHE permit ready ✓')
+              addLog('FHE ACP ready ✓')
             }
-          } catch (permitErr: any) {
+          } catch (acpErr: any) {
             if (!cancelled) {
               setCofheStatus('ready')
-              addLog(`FHE permit (skipped): ${permitErr.message}`)
+              addLog(`FHE ACP (skipped): ${acpErr.message}`)
             }
           }
         }
@@ -185,22 +189,14 @@ export default function App() {
 
       // Only the choice is encrypted client-side; the stake amount is bound to
       // msg.value on-chain by the contract (see Fix #1: encAmount/msg.value binding)
-      const [encChoice] = await cofheClient
+      // 0.7.1: execute() returns [...perInputHashes, batchProof]. The proof is bound
+      // to the consuming contract by the verifier, so it cannot be replayed elsewhere.
+      const [encChoice, proof] = await cofheClient
         .encryptInputs([Encryptable.bool(choice === 'yes')])
+        .setConsumingContract(CONTRACT_ADDRESS)
         .execute()
 
-      // Explicitly convert to viem tuple format, ensuring signature has 0x prefix
-      const toStruct = (enc: any) => ({
-        ctHash: BigInt(enc.ctHash),
-        securityZone: Number(enc.securityZone),
-        utype: Number(enc.utype),
-        signature: (typeof enc.signature === 'string' && !enc.signature.startsWith('0x')
-          ? `0x${enc.signature}`
-          : enc.signature) as `0x${string}`,
-      })
-      const encChoiceStruct = toStruct(encChoice)
-
-      addLog(`enc ctHash: ${encChoiceStruct.ctHash.toString().slice(0, 16)}… sig: ${encChoiceStruct.signature.slice(0, 10)}…`)
+      addLog(`enc handle: ${String(encChoice).slice(0, 18)}… proof: ${String(proof).slice(0, 10)}…`)
       addLog('Sending placeBet tx...')
 
       // encryption is done — writeContract() below triggers the MetaMask prompt
@@ -210,7 +206,7 @@ export default function App() {
         address: CONTRACT_ADDRESS,
         abi: ABI,
         functionName: 'placeBet',
-        args: [BigInt(marketIdParam), encChoiceStruct],
+        args: [BigInt(marketIdParam), encChoice, proof],
         value: amountWei,
         chain: arbitrumSepolia,
         account: walletClient.account!,
@@ -279,7 +275,7 @@ export default function App() {
 
         // ── Step W2: decrypt winner pool ───────────────────────────────
         addLog('[W2] CoFHE network decrypting (20-60s)...')
-        const wpDecrypt = await cofheClient.decryptForTx(encWinnerPoolCtHash).withoutPermit().execute()
+        const wpDecrypt = await cofheClient.decryptForTx(encWinnerPoolCtHash).withoutACP().execute()
         const plainWinnerPool = wpDecrypt.decryptedValue
         addLog(`Winner pool decrypted: ${formatEther(plainWinnerPool)} ETH`)
 
@@ -364,7 +360,7 @@ export default function App() {
       // ── Step 2: Decrypt via CoFHE threshold network ────────────────
       const step2Label = alreadyClaimed ? '[1/2]' : '[2/3]'
       addLog(`${step2Label} CoFHE network decrypting (20-60s)...`)
-      const decryptResult = await cofheClient.decryptForTx(ctHashForDecrypt).withoutPermit().execute()
+      const decryptResult = await cofheClient.decryptForTx(ctHashForDecrypt).withoutACP().execute()
       const plainBetAmount = decryptResult.decryptedValue
       if (plainBetAmount === 0n) {
         addLog('⚠️ Decryption result is 0 ETH (losing bet, no payout)')

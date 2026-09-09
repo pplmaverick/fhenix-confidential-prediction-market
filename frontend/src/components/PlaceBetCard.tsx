@@ -157,7 +157,7 @@ export function PlaceBetCard({
       setDecryptingIds((prev) => new Set(prev).add(key))
       cofheClient
         .decryptForView(BigInt(bet.encChoiceCtHash), FheTypes.Bool)
-        .withPermit()
+        .withACP()
         .execute()
         .then((choice) => {
           setDecryptedChoices((prev) => ({ ...prev, [key]: choice as boolean }))

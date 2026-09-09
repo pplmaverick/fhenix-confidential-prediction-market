@@ -135,7 +135,7 @@ export function useMyBets({ cofheReady }: MyBetsDataProps) {
       setDecryptingIds((prev) => new Set(prev).add(key))
       cofheClient
         .decryptForView(BigInt(encChoice), FheTypes.Bool)
-        .withPermit()
+        .withACP()
         .execute()
         .then((choice) => {
           setDecryptedChoices((prev) => ({ ...prev, [key]: choice as boolean }))
