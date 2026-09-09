@@ -17,8 +17,8 @@ FHE-encrypted prediction market — bet amounts and choices are sealed on-chain 
 |---|---|
 | Network | Arbitrum Sepolia |
 | Chain ID | 421614 |
-| Contract | `0x18A12F0872fDF5859022962931cF4D63b0a8f640` (M3.5) |
-| Explorer | [View Contract](https://sepolia.arbiscan.io/address/0x18A12F0872fDF5859022962931cF4D63b0a8f640#code) |
+| Contract | `0xBd24A5e2656FDD006c5731c0A8F60c1cd240dFe7` (M4) |
+| Explorer | [View Contract](https://sepolia.arbiscan.io/address/0xBd24A5e2656FDD006c5731c0A8F60c1cd240dFe7#code) |
 
 ---
 
@@ -40,8 +40,8 @@ This project is not a port from another chain. Every design decision maps direct
 ```
 User (Browser / Script)
   │
-  ├─ @cofhe/sdk  encrypt(amount: uint64) ──► InEuint64 { ctHash, securityZone, utype, signature }
-  └─ @cofhe/sdk  encrypt(choice: bool)   ──► InEbool   { ctHash, securityZone, utype, signature }
+  └─ @cofhe/sdk  encryptInputs([bool choice])
+       .setConsumingContract(addr)  ──► [externalEbool handle, bytes proof]
                                                 │
                                                 ▼
                      ConfidentialPredictionMarket.sol  (Arbitrum Sepolia)
@@ -73,7 +73,7 @@ User (Browser / Script)
 ## Core Features
 
 ### Encrypted Bet Placement
-Users encrypt their bet amount and choice locally via `@cofhe/sdk`, producing `InEuint64` / `InEbool` structs that are passed to the contract. The contract calls `FHE.asEuint64()` / `FHE.asEbool()` to convert them into on-chain ciphertexts, then grants access via `FHE.allowThis()` (for the contract itself) and `FHE.allowSender()` (for the bettor), ensuring only authorized parties can operate on the ciphertext.
+Users encrypt their bet choice locally via `@cofhe/sdk`, producing an `externalEbool` handle plus a batch `proof` that are passed to the contract. The verifier binds the consuming contract address into the signed proof, so a proof issued for one contract cannot be replayed against another. The contract calls `FHE.asEbool(handle, proof)` to convert it into an on-chain ciphertext (the stake amount is encrypted on-chain from `msg.value` via `FHE.asEuint64()`, never supplied by the client), then grants access via `FHE.allowThis()` (for the contract itself) and `FHE.allowSender()` (for the bettor), ensuring only authorized parties can operate on the ciphertext.
 
 ### FHE-Based Winner Verification
 `claimWinnings()` never relies on plaintext comparison. The flow:
@@ -95,7 +95,7 @@ Decryption is performed off-chain by the Fhenix threshold network, returning `(p
 
 | Contract | Address |
 |---|---|
-| `ConfidentialPredictionMarket` (M3.5) | `0x18A12F0872fDF5859022962931cF4D63b0a8f640` |
+| `ConfidentialPredictionMarket` (M4) | `0xBd24A5e2656FDD006c5731c0A8F60c1cd240dFe7` |
 | `ConfidentialPredictionMarket` (M3.1) | `0x9DE6ba0f6901e366BbCf373F7c8F63b5c955138d` (Deprecated — see DEPLOYMENT.md) |
 | `ConfidentialPredictionMarket` (deprecated, M3) | `0x79Dc91B97979E8d3cD6A56039EB2C282163b02aB` |
 | `MarketFactory` (Deprecated — see DEPLOYMENT.md) | `0x575FF2bb9f8F5Ef5Bd0198F316Cd7a1a7e8482FA` |
@@ -149,7 +149,8 @@ createMarketFor(string calldata question, address owner) external returns (uint2
 // (msg.value), encrypted on-chain — there is no separate encrypted-amount input.
 placeBet(
     uint256 marketId,
-    InEbool calldata encChoice   // encrypted choice: true = Yes, false = No
+    externalEbool encChoice,     // encrypted choice handle: true = Yes, false = No
+    bytes calldata proof         // CoFHE batch proof, bound to this contract
 ) external payable returns (uint256 betId)
 
 // Lock the betting period. Restricted to market.owner (require(msg.sender == market.owner)).
@@ -217,13 +218,14 @@ withdraw(
 
 ### placeBet — Client-side encryption
 ```
-Frontend (SDK)
-  Encryptable.uint64(amount) ──► InEuint64
-  Encryptable.bool(choice)   ──► InEbool
+Frontend (SDK 0.7.1)
+  encryptInputs([Encryptable.bool(choice)])
+    .setConsumingContract(CONTRACT_ADDRESS)   ← required before execute()
+    .execute()  ──► [externalEbool handle, bytes proof]
         │
         ▼
-Contract: FHE.asEuint64(encAmount) → euint64
-          FHE.asEbool(encChoice)   → ebool
+Contract: FHE.asEuint64(msg.value)        → euint64   (amount, never client-supplied)
+          FHE.asEbool(handle, proof)      → ebool
           FHE.allowThis(amount)    ← grants the contract future access
           FHE.allowSender(amount)  ← grants the bettor access to their own ciphertext
 ```
@@ -268,16 +270,19 @@ On-chain:  FHE.publishDecryptResult(ctHash, plainPayout, signature)
 **`evmVersion: "cancun"` is mandatory**
 The FHE contracts use transient storage opcodes (`TSTORE` / `TLOAD`). Compilation fails on any `evmVersion` below `cancun`.
 
-**`InEuint64` / `InEbool` are structs, not raw `bytes32`**
-Encrypted inputs carry four fields that must be mapped explicitly from SDK output to the Solidity struct:
+**Encrypted inputs are a `bytes32` handle plus a batch proof (`@fhenixprotocol/cofhe-contracts` 0.2.0)**
+The old four-field `InEbool` / `InEuint64` structs were removed in 0.2.0. An encrypted input is
+now a `externalEbool` (a `bytes32` user-defined value type) accompanied by a `bytes proof`;
+`securityZone` and `utype` are no longer passed in calldata (utype is implied by the `asXxx`
+overload, securityZone defaults to 0):
 ```solidity
-struct InEuint64 {
-    uint256 ctHash;       // ciphertext hash
-    uint8   securityZone; // security zone
-    uint8   utype;        // FHE type enum value
-    bytes   signature;    // ZK proof signature
-}
+type externalEbool is bytes32;
+
+function asEbool(externalEbool hash, bytes memory proof) internal returns (ebool);
 ```
+On the client, `encryptInputs()` returns a tuple of per-input handles followed by a single
+batch proof, and `.setConsumingContract(addr)` is mandatory before `.execute()` — the verifier
+binds that address into the signed digest so the proof cannot be replayed elsewhere.
 
 **FHE operations are asynchronous**
 `FHE.eq()` / `FHE.select()` submit tasks to the CoFHE Task Manager within the transaction. The actual computation is performed off-chain by the Fhenix threshold network. After `claimWinnings()` succeeds, the caller must wait for the coprocessor to process the tasks before requesting decryption.
