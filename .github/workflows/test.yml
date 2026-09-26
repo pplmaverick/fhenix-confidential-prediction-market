@@ -22,7 +22,19 @@ jobs:
           cache: "npm"
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
+
+      - name: Start Hardhat node
+        run: nohup npm run test:node > node.log 2>&1 &
+
+      - name: Wait for Hardhat node
+        run: |
+          for i in $(seq 1 30); do
+            curl -s -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","method":"eth_chainId","params":[],"id":1}' http://127.0.0.1:8545 && exit 0
+            sleep 2
+          done
+          cat node.log
+          exit 1
 
       - name: Run Hardhat tests
-        run: npx hardhat test
+        run: npx hardhat test --network localhost
