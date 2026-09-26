@@ -1,7 +1,11 @@
 import hre from "hardhat";
 
-const CONTRACT_ADDRESS = "0x9DE6ba0f6901e366BbCf373F7c8F63b5c955138d";
-const MARKET_ID = 2;
+const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS;
+if (!CONTRACT_ADDRESS) throw new Error("CONTRACT_ADDRESS not set in env");
+
+const MARKET_ID_ENV = process.env.MARKET_ID;
+if (!MARKET_ID_ENV) throw new Error("MARKET_ID not set in env");
+const MARKET_ID = Number(MARKET_ID_ENV);
 
 const ABI = [
   {

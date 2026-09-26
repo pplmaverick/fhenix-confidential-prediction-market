@@ -30,7 +30,8 @@ import { createPublicClient, createWalletClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { arbitrumSepolia as viemArbSepolia } from "viem/chains";
 
-const CONTRACT_ADDRESS = "0x9DE6ba0f6901e366BbCf373F7c8F63b5c955138d";
+const CONTRACT_ADDRESS = process.env.CONTRACT_ADDRESS;
+if (!CONTRACT_ADDRESS) throw new Error("CONTRACT_ADDRESS not set in env");
 
 function step(n: number, title: string) {
   console.log(`\n${"─".repeat(62)}`);
