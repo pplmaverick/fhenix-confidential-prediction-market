@@ -9,7 +9,7 @@
 
 ---
 
-FHE-encrypted prediction market — bet amounts and choices are sealed on-chain using CoFHE, revealed only at settlement.
+FHE-encrypted prediction market — each bet's Yes/No choice is encrypted on-chain using CoFHE. Stake amounts are public (`placeBet` is `payable`: `msg.value`, `plainAmount` and `totalPool` are readable). After settlement, the winner pool and each claimed payout can be decrypted publicly.
 
 **Deployed on Arbitrum Sepolia**
 
@@ -28,8 +28,8 @@ This project is not a port from another chain. Every design decision maps direct
 
 | Problem | Generic EVM approach | Fhenix CoFHE-native approach |
 |---|---|---|
-| Bet amount is public | Plaintext `uint256` visible in storage | `euint64` encrypted — unreadable on-chain |
-| Bet choice is public | Plaintext `bool` — anyone can see your position | `ebool` encrypted — impossible to infer stance |
+| Bet amount is public | Plaintext `uint256` visible in storage | **Not hidden today** — `placeBet` is `payable`, so the stake is public via `msg.value`, `plainAmount` and `totalPool`. An encrypted copy (`euint64 encAmount`) is kept only for the FHE payout computation |
+| Bet choice is public | Plaintext `bool` — anyone can see your position | `ebool` encrypted — the choice cannot be read directly before settlement. Stakes are public and the winner pool and payouts become publicly decryptable after settlement, so it may still be possible to narrow down which bets won |
 | Instant decryption | Read storage directly | Async `ctHash` — only the threshold network holds the decryption key |
 | No access control | Anyone can read all state | ACL via `FHE.allowThis()` / `FHE.allowSender()` — explicit permission required |
 
