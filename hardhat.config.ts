@@ -30,7 +30,8 @@ const config: HardhatUserConfig = {
     // so contracts calling FHE.* revert until the address is added to the TaskManager list.
     arbitrumOne: {
       url: process.env.ARBITRUM_ONE_RPC ?? "",
-      accounts: PRIVATE_KEY ? [`0x${PRIVATE_KEY}`] : [],
+      // No signer unless ALLOW_MAINNET=1, so a stray --network arbitrumOne cannot send anything.
+      accounts: process.env.ALLOW_MAINNET === "1" && PRIVATE_KEY ? [`0x${PRIVATE_KEY}`] : [],
       chainId: 42161,
     },
   },
