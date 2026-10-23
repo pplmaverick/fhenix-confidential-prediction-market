@@ -26,6 +26,13 @@ const config: HardhatUserConfig = {
       accounts: PRIVATE_KEY ? [`0x${PRIVATE_KEY}`] : [],
       chainId: 421614,
     },
+    // Arbitrum One: RPC is env-only (no default). CoFHE intake there is allowlist-gated,
+    // so contracts calling FHE.* revert until the address is added to the TaskManager list.
+    arbitrumOne: {
+      url: process.env.ARBITRUM_ONE_RPC ?? "",
+      accounts: PRIVATE_KEY ? [`0x${PRIVATE_KEY}`] : [],
+      chainId: 42161,
+    },
   },
   etherscan: {
     apiKey: process.env.ETHERSCAN_API_KEY ?? "",
