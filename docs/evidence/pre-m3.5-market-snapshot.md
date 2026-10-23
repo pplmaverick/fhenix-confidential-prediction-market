@@ -70,6 +70,8 @@ Note: this contract has no on-chain `endTime`/`closeTime` field, and YES/NO
 stake amounts remain FHE-encrypted per bet — only the aggregate `totalPool`
 is plaintext.
 
+> Correction (2026-10-23): per-bet stake amounts are also plaintext (`plainAmount`, `msg.value`), and `bets` is a public mapping. Only the Yes/No choice is encrypted.
+
 ## Bettor addresses for markets #2–#6 (`scripts/check-bettors.ts`)
 
 | Market | Bets | betId | Bettor | Amount | Claimed | Tx |
