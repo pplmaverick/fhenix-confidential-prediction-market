@@ -20,6 +20,20 @@ async function main() {
     feeData.maxFeePerGas ? hre.ethers.formatUnits(feeData.maxFeePerGas, "gwei") + " gwei" : "n/a"
   );
 
+  // Fail before sending anything if this record key is taken (a fresh deploy always has a new address).
+  const key = process.env.DEPLOY_LABEL ?? hre.network.name;
+  const deployFile = path.join(__dirname, "../deployments/addresses.json");
+  const deployments: Record<string, string> = {};
+  if (fs.existsSync(deployFile)) {
+    Object.assign(deployments, JSON.parse(fs.readFileSync(deployFile, "utf8")));
+  }
+  if (deployments[key] && process.env.FORCE_OVERWRITE !== "1") {
+    throw new Error(
+      `deployments/addresses.json already has "${key}" = ${deployments[key]}. ` +
+        `Set DEPLOY_LABEL to a new key, or FORCE_OVERWRITE=1 to replace it. Nothing was deployed.`
+    );
+  }
+
   const Factory = await hre.ethers.getContractFactory("ConfidentialPredictionMarket");
   const contract = await Factory.deploy({
     maxFeePerGas: feeData.maxFeePerGas ? feeData.maxFeePerGas * 2n : undefined,
@@ -34,12 +48,7 @@ async function main() {
   console.log("   Tx hash:   ", deployTx?.hash);
 
   // Save address for e2e script
-  const deployments: Record<string, string> = {};
-  const deployFile = path.join(__dirname, "../deployments/addresses.json");
-  if (fs.existsSync(deployFile)) {
-    Object.assign(deployments, JSON.parse(fs.readFileSync(deployFile, "utf8")));
-  }
-  deployments[hre.network.name] = address;
+  deployments[key] = address;
   fs.mkdirSync(path.dirname(deployFile), { recursive: true });
   fs.writeFileSync(deployFile, JSON.stringify(deployments, null, 2));
   console.log("   Address saved to deployments/addresses.json");

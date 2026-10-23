@@ -46,6 +46,14 @@ const config: HardhatUserConfig = {
           browserURL: "https://sepolia.arbiscan.io",
         },
       },
+      {
+        network: "arbitrumOne",
+        chainId: 42161,
+        urls: {
+          apiURL: "https://api.etherscan.io/v2/api?chainid=42161",
+          browserURL: "https://arbiscan.io",
+        },
+      },
     ],
   },
 };
